@@ -6,8 +6,12 @@ the real agents with tool execution and LLM fallback.
 """
 
 import os
+from dotenv import load_dotenv
 from agents import ABTestContext, create_initial_state
 from agents.workflow import run_validation_workflow
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def main():
