@@ -45,7 +45,7 @@ class StatisticalValidationAgent(BaseAgent):
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
 
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-lite",
             temperature=0.0,
             google_api_key=api_key
         )

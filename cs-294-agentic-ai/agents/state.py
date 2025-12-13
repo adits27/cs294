@@ -55,6 +55,14 @@ class ABTestContext(BaseModel):
         ...,
         description="Path to the A/B test dataset"
     )
+    code_path: str = Field(
+        default="",
+        description="Path to the analysis code file (optional, defaults to dataset_path with .py extension)"
+    )
+    report_path: str = Field(
+        default="",
+        description="Path to the analysis report file (optional, defaults to dataset_path with _report.md)"
+    )
     expected_effect_size: float = Field(
         ...,
         description="Expected effect size for the test (e.g., minimum detectable effect)"
