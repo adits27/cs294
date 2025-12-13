@@ -7,7 +7,16 @@ for the A2A-based A/B testing validation system.
 
 from .base_agent import BaseAgent
 from .protocol import A2AMessage, MessageStatus, MessageType
-from .state import ABTestContext, ValidationState, create_initial_state, update_validation_state
+from .state import ABTestContext, ValidationState, create_initial_state, update_validation_state, merge_dicts
+from .orchestrator import OrchestratingAgent
+from .workflow import create_validation_workflow, run_validation_workflow
+from .dummy_agents import (
+    DataValidationAgent,
+    CodeValidationAgent,
+    ReportValidationAgent,
+    StatisticalValidationAgent,
+    FailingDummyAgent
+)
 
 __all__ = [
     "BaseAgent",
@@ -18,6 +27,15 @@ __all__ = [
     "ValidationState",
     "create_initial_state",
     "update_validation_state",
+    "merge_dicts",
+    "OrchestratingAgent",
+    "create_validation_workflow",
+    "run_validation_workflow",
+    "DataValidationAgent",
+    "CodeValidationAgent",
+    "ReportValidationAgent",
+    "StatisticalValidationAgent",
+    "FailingDummyAgent",
 ]
 
 __version__ = "0.1.0"

@@ -5,11 +5,35 @@ This module defines the shared state and context schemas used across
 all agents in the validation and assessment pipeline.
 """
 
-from typing import Any, Dict, List, TypedDict
+from typing import Annotated, Any, Dict, List, TypedDict
+from operator import add
 
 from pydantic import BaseModel, Field
 
 from .protocol import A2AMessage
+
+
+def merge_dicts(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deep merge two dictionaries, with right values taking precedence.
+
+    Used as a reducer for ValidationState.validation_results to handle
+    concurrent updates from parallel agent nodes.
+
+    For nested dictionaries (like agent_responses), this merges them
+    instead of overwriting.
+    """
+    result = left.copy()
+
+    for key, value in right.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # Deep merge nested dictionaries
+            result[key] = {**result[key], **value}
+        else:
+            # Override with right value
+            result[key] = value
+
+    return result
 
 
 class ABTestContext(BaseModel):
@@ -60,15 +84,20 @@ class ABTestContext(BaseModel):
 
 class ValidationState(TypedDict):
     """
-    Validation state for LangGraph compatibility.
+    Validation state for LangGraph compatibility with parallel execution support.
 
     This TypedDict tracks the complete state of the validation workflow,
     including task information, context, message logs, and results.
+
+    Uses Annotated types with reducers to handle concurrent updates from
+    parallel agent nodes:
+    - a2a_message_log: Uses 'add' operator to append messages
+    - validation_results: Uses 'merge_dicts' to merge result dictionaries
     """
     task: str
     ab_test_context: ABTestContext
-    a2a_message_log: List[A2AMessage]
-    validation_results: Dict[str, Any]
+    a2a_message_log: Annotated[List[A2AMessage], add]
+    validation_results: Annotated[Dict[str, Any], merge_dicts]
     final_score: float
     validation_summary: str
 
