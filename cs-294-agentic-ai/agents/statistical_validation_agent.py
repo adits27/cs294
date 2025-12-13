@@ -115,7 +115,8 @@ class StatisticalValidationAgent(BaseAgent):
                 "significance_level_check"
             ],
             "tool_success": tool_result["success"],
-            "details": score_result.get("details", {})
+            "details": score_result.get("details", {}),
+            "feedback": score_result.get("feedback", {})
         }
 
         return self.create_response(
@@ -273,7 +274,11 @@ If the analysis was done via LLM fallback (not tool), cap the maximum score at 7
 Respond in this format:
 Score: <number>
 Reasoning: <brief explanation>
-Details: power=<score>, sample_size=<score>, effect_size=<score>, design=<score>"""
+Details: power=<score>, sample_size=<score>, effect_size=<score>, design=<score>
+Feedback_Power: <exactly 2 sentences explaining why the power score was given>
+Feedback_SampleSize: <exactly 2 sentences explaining why the sample_size score was given>
+Feedback_EffectSize: <exactly 2 sentences explaining why the effect_size score was given>
+Feedback_Design: <exactly 2 sentences explaining why the design score was given>"""
 
         try:
             response = self.llm.invoke(scoring_prompt)
@@ -284,6 +289,7 @@ Details: power=<score>, sample_size=<score>, effect_size=<score>, design=<score>
             score = 50.0  # Default
             reasoning = "Unable to parse scoring response"
             details = {}
+            feedback = {}
 
             for line in lines:
                 if line.startswith("Score:"):
@@ -303,6 +309,14 @@ Details: power=<score>, sample_size=<score>, effect_size=<score>, design=<score>
                                 details[key.strip()] = float(val.strip())
                             except:
                                 pass
+                elif line.startswith("Feedback_Power:"):
+                    feedback["power"] = line.split("Feedback_Power:")[1].strip()
+                elif line.startswith("Feedback_SampleSize:"):
+                    feedback["sample_size"] = line.split("Feedback_SampleSize:")[1].strip()
+                elif line.startswith("Feedback_EffectSize:"):
+                    feedback["effect_size"] = line.split("Feedback_EffectSize:")[1].strip()
+                elif line.startswith("Feedback_Design:"):
+                    feedback["design"] = line.split("Feedback_Design:")[1].strip()
 
             # Cap score at 75 for LLM fallback
             if method == "llm_fallback" and score > 75:
@@ -312,7 +326,8 @@ Details: power=<score>, sample_size=<score>, effect_size=<score>, design=<score>
             return {
                 "score": score,
                 "reasoning": reasoning,
-                "details": details
+                "details": details,
+                "feedback": feedback
             }
 
         except Exception as e:

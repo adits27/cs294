@@ -94,7 +94,8 @@ class DataValidationAgent(BaseAgent):
                 "sample_size_check"
             ],
             "tool_success": tool_result["success"],
-            "details": score_result.get("details", {})
+            "details": score_result.get("details", {}),
+            "feedback": score_result.get("feedback", {})
         }
 
         return self.create_response(
@@ -227,7 +228,11 @@ If the analysis was done via LLM fallback (not tool), cap the maximum score at 7
 Respond in this format:
 Score: <number>
 Reasoning: <brief explanation>
-Details: completeness=<score>, quality=<score>, types=<score>, sample_size=<score>"""
+Details: completeness=<score>, quality=<score>, types=<score>, sample_size=<score>
+Feedback_Completeness: <exactly 2 sentences explaining why the completeness score was given>
+Feedback_Quality: <exactly 2 sentences explaining why the quality score was given>
+Feedback_Types: <exactly 2 sentences explaining why the types score was given>
+Feedback_SampleSize: <exactly 2 sentences explaining why the sample_size score was given>"""
 
         try:
             response = self.llm.invoke(scoring_prompt)
@@ -238,6 +243,7 @@ Details: completeness=<score>, quality=<score>, types=<score>, sample_size=<scor
             score = 50.0  # Default
             reasoning = "Unable to parse scoring response"
             details = {}
+            feedback = {}
 
             for line in lines:
                 if line.startswith("Score:"):
@@ -257,6 +263,14 @@ Details: completeness=<score>, quality=<score>, types=<score>, sample_size=<scor
                                 details[key.strip()] = float(val.strip())
                             except:
                                 pass
+                elif line.startswith("Feedback_Completeness:"):
+                    feedback["completeness"] = line.split("Feedback_Completeness:")[1].strip()
+                elif line.startswith("Feedback_Quality:"):
+                    feedback["quality"] = line.split("Feedback_Quality:")[1].strip()
+                elif line.startswith("Feedback_Types:"):
+                    feedback["types"] = line.split("Feedback_Types:")[1].strip()
+                elif line.startswith("Feedback_SampleSize:"):
+                    feedback["sample_size"] = line.split("Feedback_SampleSize:")[1].strip()
 
             # Cap score at 70 for LLM fallback
             if method == "llm_fallback" and score > 70:
@@ -266,7 +280,8 @@ Details: completeness=<score>, quality=<score>, types=<score>, sample_size=<scor
             return {
                 "score": score,
                 "reasoning": reasoning,
-                "details": details
+                "details": details,
+                "feedback": feedback
             }
 
         except Exception as e:

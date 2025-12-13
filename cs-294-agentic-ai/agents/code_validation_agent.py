@@ -107,7 +107,8 @@ class CodeValidationAgent(BaseAgent):
                 "details": {
                     "syntax": 100.0,
                     "style": style_result["score"]
-                }
+                },
+                "feedback": style_result.get("feedback", {})
             }
 
         return self.create_response(
@@ -218,7 +219,11 @@ Assign a total score from 0-100 based on these criteria.
 Respond in this format:
 Score: <number>
 Reasoning: <brief explanation covering the 4 criteria>
-Details: pep8=<score>, modularity=<score>, documentation=<score>, best_practices=<score>"""
+Details: pep8=<score>, modularity=<score>, documentation=<score>, best_practices=<score>
+Feedback_PEP8: <exactly 2 sentences explaining why the PEP-8 score was given>
+Feedback_Modularity: <exactly 2 sentences explaining why the modularity score was given>
+Feedback_Documentation: <exactly 2 sentences explaining why the documentation score was given>
+Feedback_BestPractices: <exactly 2 sentences explaining why the best_practices score was given>"""
 
         try:
             response = self.llm.invoke(style_prompt)
@@ -229,6 +234,7 @@ Details: pep8=<score>, modularity=<score>, documentation=<score>, best_practices
             score = 60.0  # Default
             reasoning = "Unable to parse style assessment"
             details = {}
+            feedback = {}
 
             for line in lines:
                 if line.startswith("Score:"):
@@ -248,11 +254,20 @@ Details: pep8=<score>, modularity=<score>, documentation=<score>, best_practices
                                 details[key.strip()] = float(val.strip())
                             except:
                                 pass
+                elif line.startswith("Feedback_PEP8:"):
+                    feedback["pep8"] = line.split("Feedback_PEP8:")[1].strip()
+                elif line.startswith("Feedback_Modularity:"):
+                    feedback["modularity"] = line.split("Feedback_Modularity:")[1].strip()
+                elif line.startswith("Feedback_Documentation:"):
+                    feedback["documentation"] = line.split("Feedback_Documentation:")[1].strip()
+                elif line.startswith("Feedback_BestPractices:"):
+                    feedback["best_practices"] = line.split("Feedback_BestPractices:")[1].strip()
 
             return {
                 "score": score,
                 "reasoning": reasoning,
-                "details": details
+                "details": details,
+                "feedback": feedback
             }
 
         except Exception as e:

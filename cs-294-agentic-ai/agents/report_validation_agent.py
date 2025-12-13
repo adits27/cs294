@@ -82,7 +82,8 @@ class ReportValidationAgent(BaseAgent):
                 "conclusion_check",
                 "actionability_check"
             ],
-            "details": validation_result.get("details", {})
+            "details": validation_result.get("details", {}),
+            "feedback": validation_result.get("feedback", {})
         }
 
         return self.create_response(
@@ -181,7 +182,11 @@ Assign a total score from 0-100 based on these criteria.
 Respond in this format:
 Score: <number>
 Reasoning: <brief explanation covering the 4 criteria>
-Details: structure=<score>, conclusions=<score>, actionability=<score>, completeness=<score>"""
+Details: structure=<score>, conclusions=<score>, actionability=<score>, completeness=<score>
+Feedback_Structure: <exactly 2 sentences explaining why the structure score was given>
+Feedback_Conclusions: <exactly 2 sentences explaining why the conclusions score was given>
+Feedback_Actionability: <exactly 2 sentences explaining why the actionability score was given>
+Feedback_Completeness: <exactly 2 sentences explaining why the completeness score was given>"""
 
         try:
             response = self.llm.invoke(validation_prompt)
@@ -192,6 +197,7 @@ Details: structure=<score>, conclusions=<score>, actionability=<score>, complete
             score = 70.0  # Default (reasonable for typical reports)
             reasoning = "Unable to parse report assessment"
             details = {}
+            feedback = {}
 
             for line in lines:
                 if line.startswith("Score:"):
@@ -211,11 +217,20 @@ Details: structure=<score>, conclusions=<score>, actionability=<score>, complete
                                 details[key.strip()] = float(val.strip())
                             except:
                                 pass
+                elif line.startswith("Feedback_Structure:"):
+                    feedback["structure"] = line.split("Feedback_Structure:")[1].strip()
+                elif line.startswith("Feedback_Conclusions:"):
+                    feedback["conclusions"] = line.split("Feedback_Conclusions:")[1].strip()
+                elif line.startswith("Feedback_Actionability:"):
+                    feedback["actionability"] = line.split("Feedback_Actionability:")[1].strip()
+                elif line.startswith("Feedback_Completeness:"):
+                    feedback["completeness"] = line.split("Feedback_Completeness:")[1].strip()
 
             return {
                 "score": score,
                 "reasoning": reasoning,
-                "details": details
+                "details": details,
+                "feedback": feedback
             }
 
         except Exception as e:
