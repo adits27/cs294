@@ -46,7 +46,7 @@ class CodeValidationAgent(BaseAgent):
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
 
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             temperature=0.0,
             google_api_key=api_key
         )
@@ -74,6 +74,7 @@ class CodeValidationAgent(BaseAgent):
             result_data = {
                 "score": 0.0,
                 "validation_type": "code_quality",
+                "method": "tool",
                 "syntax_valid": False,
                 "syntax_error": syntax_result["error"],
                 "style_score": 0.0,
@@ -95,6 +96,7 @@ class CodeValidationAgent(BaseAgent):
             result_data = {
                 "score": final_score,
                 "validation_type": "code_quality",
+                "method": "tool",
                 "syntax_valid": True,
                 "style_score": style_result["score"],
                 "reasoning": style_result["reasoning"],
