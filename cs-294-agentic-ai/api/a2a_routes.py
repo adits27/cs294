@@ -223,16 +223,19 @@ async def get_capabilities():
             description="Complete validation of A/B test experiments including data, code, reports, and statistical analysis",
             input_schema={
                 "type": "object",
-                "required": ["hypothesis", "success_metrics", "dataset_path", "expected_effect_size"],
+                "required": ["data_source"],
                 "properties": {
-                    "hypothesis": {"type": "string"},
-                    "success_metrics": {"type": "array", "items": {"type": "string"}},
-                    "dataset_path": {"type": "string"},
-                    "code_path": {"type": "string"},
-                    "report_path": {"type": "string"},
-                    "expected_effect_size": {"type": "number"},
-                    "significance_level": {"type": "number", "default": 0.05},
-                    "power": {"type": "number", "default": 0.80}
+                    "data_source": {"type": "string", "description": "Path to data files (required)"},
+                    "code_source": {"type": "string", "description": "Path to code files (optional)"},
+                    "report_source": {"type": "string", "description": "Path to report files (optional)"},
+                    "hypothesis": {"type": "string", "description": "Hypothesis being tested (optional, inferred from files)"},
+                    "success_metrics": {"type": "array", "items": {"type": "string"}, "description": "Success metrics (optional, inferred from files)"},
+                    "expected_effect_size": {"type": "number", "default": 0.05, "description": "Expected effect size"},
+                    "significance_level": {"type": "number", "default": 0.05, "description": "Significance level (alpha)"},
+                    "power": {"type": "number", "default": 0.80, "description": "Statistical power (1-beta)"},
+                    "dataset_path": {"type": "string", "description": "[DEPRECATED] Use data_source instead"},
+                    "code_path": {"type": "string", "description": "[DEPRECATED] Use code_source instead"},
+                    "report_path": {"type": "string", "description": "[DEPRECATED] Use report_source instead"}
                 }
             },
             output_schema={
@@ -288,24 +291,26 @@ async def invoke_capability(request: A2AInvokeRequest, background_tasks: Backgro
         )
 
     try:
-        # Validate input schema
-        required_fields = ["hypothesis", "success_metrics", "dataset_path", "expected_effect_size"]
-        missing_fields = [field for field in required_fields if field not in request.input]
+        # Validate input schema - support both new and legacy field names
+        # New field names: data_source, code_source, report_source
+        # Legacy field names: dataset_path, code_path, report_path
+        has_data_source = "data_source" in request.input
+        has_dataset_path = "dataset_path" in request.input
 
-        if missing_fields:
+        if not (has_data_source or has_dataset_path):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Missing required input fields: {missing_fields}"
+                detail=f"Missing required field: 'data_source' (or legacy 'dataset_path')"
             )
 
-        # Create ABTestContext from input
+        # Create ABTestContext from input - use new field names, fallback to legacy
         ab_test_context = ABTestContext(
-            hypothesis=request.input["hypothesis"],
-            success_metrics=request.input["success_metrics"],
-            dataset_path=request.input["dataset_path"],
-            code_path=request.input.get("code_path", ""),
-            report_path=request.input.get("report_path", ""),
-            expected_effect_size=request.input["expected_effect_size"],
+            data_source=request.input.get("data_source") or request.input.get("dataset_path", ""),
+            code_source=request.input.get("code_source") or request.input.get("code_path", ""),
+            report_source=request.input.get("report_source") or request.input.get("report_path", ""),
+            hypothesis=request.input.get("hypothesis", ""),
+            success_metrics=request.input.get("success_metrics", []),
+            expected_effect_size=request.input.get("expected_effect_size", 0.05),
             significance_level=request.input.get("significance_level", 0.05),
             power=request.input.get("power", 0.80),
         )
