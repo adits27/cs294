@@ -6,6 +6,8 @@ Uses Python tools first, with LLM fallback if tool execution fails.
 """
 
 import os
+import glob
+from pathlib import Path
 from typing import Dict, Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -61,11 +63,27 @@ class DataValidationAgent(BaseAgent):
             A2AMessage: Response with validation score and details
         """
         ab_test_context = message.data.get("ab_test_context", {})
-        dataset_path = ab_test_context.get("dataset_path", "")
+        data_source = ab_test_context.get("data_source", "")
 
-        logger.info(f"Starting data validation for dataset: {dataset_path}")
+        # Fallback to legacy field names for backward compatibility
+        if not data_source:
+            data_source = ab_test_context.get("dataset_path", "")
 
-        tool_result = self._validate_with_tool(dataset_path, ab_test_context)
+        # Expand glob pattern if present
+        if '*' in data_source:
+            data_files = glob.glob(data_source)
+            # Filter to only .csv files
+            data_files = [f for f in data_files if Path(f).is_file() and f.endswith('.csv')]
+            if data_files:
+                data_source = data_files[0]  # Use first data file found
+                logger.info(f"Found {len(data_files)} data file(s), using: {data_source}")
+            else:
+                logger.warning(f"No data files found matching pattern: {data_source}")
+                data_source = ""
+
+        logger.info(f"Starting data validation for dataset: {data_source}")
+
+        tool_result = self._validate_with_tool(data_source, ab_test_context)
 
         if tool_result["success"]:
             logger.info("Tool execution successful, using tool-based analysis")
@@ -74,7 +92,7 @@ class DataValidationAgent(BaseAgent):
         else:
             logger.warning(f"Tool execution failed: {tool_result['error']}")
             logger.info("Falling back to LLM heuristic assessment")
-            analysis = self._fallback_to_llm(dataset_path, ab_test_context, tool_result["error"])
+            analysis = self._fallback_to_llm(data_source, ab_test_context, tool_result["error"])
             method = "llm_fallback"
 
         score_result = self._score_analysis(analysis, method, ab_test_context)

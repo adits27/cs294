@@ -6,6 +6,8 @@ Uses Python tools (statsmodels, scipy) first, with LLM fallback if tool executio
 """
 
 import os
+import glob
+from pathlib import Path
 from typing import Dict, Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -61,15 +63,32 @@ class StatisticalValidationAgent(BaseAgent):
             A2AMessage: Response with validation score and details
         """
         ab_test_context = message.data.get("ab_test_context", {})
-        dataset_path = ab_test_context.get("dataset_path", "")
+        data_source = ab_test_context.get("data_source", "")
+
+        # Fallback to legacy field names for backward compatibility
+        if not data_source:
+            data_source = ab_test_context.get("dataset_path", "")
+
+        # Expand glob pattern if present
+        if '*' in data_source:
+            data_files = glob.glob(data_source)
+            # Filter to only .csv files
+            data_files = [f for f in data_files if Path(f).is_file() and f.endswith('.csv')]
+            if data_files:
+                data_source = data_files[0]  # Use first data file found
+                logger.info(f"Found {len(data_files)} data file(s), using: {data_source}")
+            else:
+                logger.warning(f"No data files found matching pattern: {data_source}")
+                data_source = ""
+
         expected_effect_size = ab_test_context.get("expected_effect_size", 0.05)
         significance_level = ab_test_context.get("significance_level", 0.05)
         target_power = ab_test_context.get("power", 0.80)
 
-        logger.info(f"Starting statistical validation - Dataset: {dataset_path}, Effect: {expected_effect_size}, Power: {target_power}")
+        logger.info(f"Starting statistical validation - Dataset: {data_source}, Effect: {expected_effect_size}, Power: {target_power}")
 
         tool_result = self._validate_with_tool(
-            dataset_path,
+            data_source,
             expected_effect_size,
             significance_level,
             target_power,
@@ -146,24 +165,62 @@ class StatisticalValidationAgent(BaseAgent):
         Returns:
             Dict with success status and output/error
         """
-        # Generate Python code for statistical analysis
-        code_prompt = f"""Generate Python code to perform statistical power analysis for an A/B test.
+        # Step 1: First, inspect the CSV to discover column names
+        inspection_code = f"""
+import pandas as pd
 
-Dataset: {dataset_path}
+# Load the CSV to inspect its structure
+df = pd.read_csv('{dataset_path}')
+print("Dataset columns:", df.columns.tolist())
+print("Dataset shape:", df.shape)
+print("First few rows:")
+print(df.head())
+"""
+
+        try:
+            # Inspect the CSV structure first
+            inspection_result = python_repl.run(inspection_code)
+
+            if not inspection_result.get("success"):
+                logger.warning(f"CSV inspection failed: {inspection_result.get('error')}")
+                return {
+                    "success": False,
+                    "output": "",
+                    "error": f"Failed to load CSV file: {inspection_result.get('error')}"
+                }
+
+            inspection_output = inspection_result.get("output", "")
+            logger.debug(f"CSV inspection output: {inspection_output[:500]}")
+
+            # Step 2: Generate Python code with CSV structure context
+            code_prompt = f"""Generate Python code to perform statistical power analysis for an A/B test.
+
+Dataset Path: {dataset_path}
 Expected Effect Size: {effect_size}
 Significance Level (alpha): {alpha}
 Target Power: {target_power}
 
-The code should:
-1. Import necessary libraries (pandas, statsmodels.stats.power, scipy.stats)
-2. Load the dataset to determine sample size
-3. Calculate statistical power using statsmodels.stats.power.TTestIndPower
-4. Compare calculated power against target power ({target_power})
-5. Print results including: sample_size, calculated_power, power_adequate (True/False)
+CSV Structure Information:
+{inspection_output}
 
-Respond with ONLY the Python code, no explanations."""
+IMPORTANT Instructions:
+1. The CSV has been loaded and inspected above. Use the ACTUAL column names shown in the output.
+2. Look for columns that indicate treatment/control groups (commonly named: 'treatment', 'group', 'variant', etc.)
+3. Look for columns that contain the outcome metric (commonly named: 'test_score', 'value', 'metric', 'outcome', etc.)
+4. Import necessary libraries (pandas, statsmodels.stats.power, scipy.stats, numpy)
+5. Load the dataset from '{dataset_path}'
+6. Separate data into treatment and control groups using the appropriate column
+7. Calculate effect size from the actual data (Cohen's d)
+8. Calculate statistical power using statsmodels.stats.power.TTestIndPower
+9. Compare calculated power against target power ({target_power})
+10. Print clear results including:
+    - Sample sizes (total, treatment, control)
+    - Calculated effect size (Cohen's d)
+    - Calculated power
+    - Whether power is adequate (>= {target_power})
 
-        try:
+Respond with ONLY the Python code, no explanations or markdown formatting."""
+
             response = self.llm.invoke(code_prompt)
             generated_code = response.content.strip()
 
@@ -175,7 +232,21 @@ Respond with ONLY the Python code, no explanations."""
 
             logger.debug(f"Generated statistical analysis code: {len(generated_code)} characters")
 
+            # Step 3: Execute the generated code
             result = python_repl.run(generated_code)
+
+            # Step 4: Check if the execution actually succeeded (look for errors in output)
+            if result.get("success"):
+                output = result.get("output", "")
+                # Check if output contains error messages
+                if "Error:" in output or "error" in output.lower() or "exception" in output.lower():
+                    logger.warning(f"Tool execution returned error in output: {output[:200]}")
+                    return {
+                        "success": False,
+                        "output": output,
+                        "error": "Statistical analysis failed - see output for details"
+                    }
+
             return result
 
         except Exception as e:
@@ -269,7 +340,7 @@ Scoring Criteria:
 - Effect Size: Is effect size realistic and detectable? (20 points)
 - Experimental Design: Are statistical assumptions valid? (10 points)
 
-If the analysis was done via LLM fallback (not tool), cap the maximum score at 75.
+Note: Even if the analysis was done via LLM fallback (heuristic method), provide an accurate score based on the quality of the experimental design and parameters.
 
 Respond in this format:
 Score: <number>
@@ -284,9 +355,11 @@ Feedback_Design: <exactly 2 sentences explaining why the design score was given>
             response = self.llm.invoke(scoring_prompt)
             content = response.content.strip()
 
+            logger.debug(f"LLM scoring response: {content[:500]}")  # Log first 500 chars for debugging
+
             # Parse the response
             lines = content.split('\n')
-            score = 50.0  # Default
+            score = None  # Start with None to detect if we found a score
             reasoning = "Unable to parse scoring response"
             details = {}
             feedback = {}
@@ -294,9 +367,13 @@ Feedback_Design: <exactly 2 sentences explaining why the design score was given>
             for line in lines:
                 if line.startswith("Score:"):
                     try:
-                        score = float(line.split("Score:")[1].strip())
-                    except:
-                        pass
+                        score_str = line.split("Score:")[1].strip()
+                        # Handle various formats: "Score: 75", "Score: 75.0", "Score: 75/100"
+                        score_str = score_str.split('/')[0].strip()
+                        score = float(score_str)
+                        logger.debug(f"Extracted score: {score}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse score from line '{line}': {e}")
                 elif line.startswith("Reasoning:"):
                     reasoning = line.split("Reasoning:")[1].strip()
                 elif line.startswith("Details:"):
@@ -318,10 +395,14 @@ Feedback_Design: <exactly 2 sentences explaining why the design score was given>
                 elif line.startswith("Feedback_Design:"):
                     feedback["design"] = line.split("Feedback_Design:")[1].strip()
 
-            # Cap score at 75 for LLM fallback
-            if method == "llm_fallback" and score > 75:
-                score = 75.0
-                reasoning += " (capped at 75 due to LLM fallback method)"
+            # If we didn't find a score, use a reasonable default based on method
+            if score is None:
+                logger.warning("No score found in LLM response, using default")
+                score = 60.0 if method == "llm_fallback" else 50.0
+                reasoning = f"Score parsing failed. {reasoning}"
+
+            # Ensure score is in valid range
+            score = max(0.0, min(100.0, score))
 
             return {
                 "score": score,

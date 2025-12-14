@@ -11,13 +11,10 @@ from .state import ABTestContext, ValidationState, create_initial_state, update_
 from .orchestrator import OrchestratingAgent
 from .workflow import create_validation_workflow, run_validation_workflow
 from .parameter_inference_agent import ParameterInferenceAgent
-from .dummy_agents import (
-    DataValidationAgent,
-    CodeValidationAgent,
-    ReportValidationAgent,
-    StatisticalValidationAgent,
-    FailingDummyAgent
-)
+from .data_validation_agent import DataValidationAgent
+from .code_validation_agent import CodeValidationAgent
+from .report_validation_agent import ReportValidationAgent
+from .statistical_validation_agent import StatisticalValidationAgent
 
 __all__ = [
     "BaseAgent",
@@ -37,7 +34,6 @@ __all__ = [
     "CodeValidationAgent",
     "ReportValidationAgent",
     "StatisticalValidationAgent",
-    "FailingDummyAgent",
 ]
 
 __version__ = "0.1.0"

@@ -6,6 +6,8 @@ Uses pure LLM assessment (no tools needed).
 """
 
 import os
+import glob
+from pathlib import Path
 from typing import Dict, Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -60,12 +62,28 @@ class ReportValidationAgent(BaseAgent):
             A2AMessage: Response with validation score and details
         """
         ab_test_context = message.data.get("ab_test_context", {})
-        dataset_path = ab_test_context.get("dataset_path", "")
-        report_path = ab_test_context.get("report_path", dataset_path.replace(".csv", "_report.md"))
+        data_source = ab_test_context.get("data_source", "")
+        report_source = ab_test_context.get("report_source", "")
 
-        logger.info(f"Starting report validation for: {report_path}")
+        # Fallback to legacy field names for backward compatibility
+        if not report_source:
+            report_source = ab_test_context.get("report_path", data_source.replace(".csv", "_report.md"))
 
-        report_content = self._load_report(report_path)
+        # Expand glob pattern if present
+        if '*' in report_source:
+            report_files = glob.glob(report_source)
+            # Filter to only .md files
+            report_files = [f for f in report_files if Path(f).is_file() and f.endswith('.md')]
+            if report_files:
+                report_source = report_files[0]  # Use first report file found
+                logger.info(f"Found {len(report_files)} report file(s), using: {report_source}")
+            else:
+                logger.warning(f"No report files found matching pattern: {report_source}")
+                report_source = ""
+
+        logger.info(f"Starting report validation for: {report_source}")
+
+        report_content = self._load_report(report_source)
         validation_result = self._validate_report(report_content, ab_test_context)
 
         logger.info(f"Report validation completed - Score: {validation_result['score']:.1f}")

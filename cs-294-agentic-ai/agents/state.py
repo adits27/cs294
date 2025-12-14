@@ -121,11 +121,10 @@ class ABTestContext(BaseModel):
             base_folder = self.data_source[:-2]  # Remove /*
             base_path = Path(base_folder)
 
-            # Auto-discover data_source subfolder if not explicitly set
-            if not self.data_source or self.data_source == f"{base_folder}/*":
-                data_folder = base_path / "data_source"
-                if data_folder.exists():
-                    self.data_source = str(data_folder / "*")
+            # Auto-discover data_source subfolder
+            data_folder = base_path / "data_source"
+            if data_folder.exists():
+                self.data_source = str(data_folder / "*")
 
             # Auto-discover code subfolder if not explicitly set
             if not self.code_source:

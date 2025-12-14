@@ -113,11 +113,12 @@ def extract_validation_breakdown(validation_results: Dict[str, Any]) -> Validati
     synthesis = validation_results.get("synthesis", {})
     breakdown_data = synthesis.get("breakdown", {})
 
+    # Extract just the scores from the breakdown dictionaries
     return ValidationBreakdown(
-        statistical_validation=breakdown_data.get("statistical_validation"),
-        report_quality=breakdown_data.get("report_quality"),
-        data_quality=breakdown_data.get("data_quality"),
-        code_quality=breakdown_data.get("code_quality"),
+        statistical_validation=breakdown_data.get("statistical_validation", {}).get("score") if isinstance(breakdown_data.get("statistical_validation"), dict) else breakdown_data.get("statistical_validation"),
+        report_quality=breakdown_data.get("report_quality", {}).get("score") if isinstance(breakdown_data.get("report_quality"), dict) else breakdown_data.get("report_quality"),
+        data_quality=breakdown_data.get("data_quality", {}).get("score") if isinstance(breakdown_data.get("data_quality"), dict) else breakdown_data.get("data_quality"),
+        code_quality=breakdown_data.get("code_quality", {}).get("score") if isinstance(breakdown_data.get("code_quality"), dict) else breakdown_data.get("code_quality"),
     )
 
 

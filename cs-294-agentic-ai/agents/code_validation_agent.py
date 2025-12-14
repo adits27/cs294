@@ -6,6 +6,8 @@ Uses AST parsing for syntax validation and LLM for style assessment.
 """
 
 import os
+import glob
+from pathlib import Path
 from typing import Dict, Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -62,12 +64,28 @@ class CodeValidationAgent(BaseAgent):
             A2AMessage: Response with validation score and details
         """
         ab_test_context = message.data.get("ab_test_context", {})
-        dataset_path = ab_test_context.get("dataset_path", "")
-        code_path = ab_test_context.get("code_path", dataset_path.replace(".csv", ".py"))
+        data_source = ab_test_context.get("data_source", "")
+        code_source = ab_test_context.get("code_source", "")
 
-        logger.info(f"Starting code validation for: {code_path}")
+        # Fallback to legacy field names for backward compatibility
+        if not code_source:
+            code_source = ab_test_context.get("code_path", data_source.replace(".csv", ".py"))
 
-        syntax_result = self._validate_syntax(code_path)
+        # Expand glob pattern if present
+        if '*' in code_source:
+            code_files = glob.glob(code_source)
+            # Filter to only .py files
+            code_files = [f for f in code_files if Path(f).is_file() and f.endswith('.py')]
+            if code_files:
+                code_source = code_files[0]  # Use first code file found
+                logger.info(f"Found {len(code_files)} code file(s), using: {code_source}")
+            else:
+                logger.warning(f"No code files found matching pattern: {code_source}")
+                code_source = ""
+
+        logger.info(f"Starting code validation for: {code_source}")
+
+        syntax_result = self._validate_syntax(code_source)
 
         if not syntax_result['valid']:
             logger.error(f"Syntax validation failed: {syntax_result['error']}")
