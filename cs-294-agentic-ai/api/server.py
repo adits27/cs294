@@ -238,6 +238,61 @@ async def root():
     }
 
 
+# Info endpoint (AgentBeats compatible)
+@app.get("/info", include_in_schema=False)
+async def info():
+    """Agent info endpoint for AgentBeats controller"""
+    return {
+        "agent_id": "ab-test-validation-agent",
+        "agent_name": "A/B Test Validation Agent",
+        "version": API_VERSION,
+        "description": "Multi-agent A/B test validation system using A2A protocol",
+        "capabilities": ["ab_test_validation"],
+        "endpoints": {
+            "manifest": "/a2a/manifest",
+            "capabilities": "/a2a/capabilities",
+            "invoke": "/a2a/invoke",
+            "health": "/a2a/health",
+            "info": "/a2a/info"
+        }
+    }
+
+
+# Agent card endpoint (AgentBeats verification)
+@app.get("/.well-known/agent-card.json", include_in_schema=False)
+async def agent_card():
+    """Agent card for AgentBeats verification"""
+    from pathlib import Path
+    import json
+
+    card_path = Path(__file__).parent.parent / ".well-known" / "agent-card.json"
+    if card_path.exists():
+        with open(card_path, 'r') as f:
+            return json.load(f)
+
+    # Fallback if file doesn't exist
+    return {
+        "name": "A/B Test Validation Agent",
+        "description": "Multi-agent A/B test validation system using A2A protocol",
+        "version": API_VERSION,
+        "agent_id": "ab-test-validation-agent",
+        "capabilities": [
+            {
+                "id": "ab_test_validation",
+                "name": "A/B Test Validation",
+                "description": "Complete validation of A/B test experiments including data, code, reports, and statistical analysis"
+            }
+        ],
+        "endpoints": {
+            "info": "/info",
+            "manifest": "/a2a/manifest",
+            "capabilities": "/a2a/capabilities",
+            "invoke": "/a2a/invoke",
+            "health": "/a2a/health"
+        }
+    }
+
+
 # ============================================================================
 # Main Entry Point
 # ============================================================================

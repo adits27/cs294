@@ -466,6 +466,28 @@ async def get_session_result(session_id: str):
 
 
 @a2a_router.get(
+    "/info",
+    summary="Get Agent Info",
+    description="Get basic agent information (AgentBeats compatible endpoint)"
+)
+async def get_agent_info():
+    """Return basic agent information for AgentBeats controller"""
+    return {
+        "agent_id": "ab-test-validation-agent",
+        "agent_name": "A/B Test Validation Agent",
+        "version": "1.0.0",
+        "description": "Multi-agent A/B test validation system using A2A protocol",
+        "capabilities": ["ab_test_validation"],
+        "endpoints": {
+            "manifest": "/a2a/manifest",
+            "capabilities": "/a2a/capabilities",
+            "invoke": "/a2a/invoke",
+            "health": "/a2a/health"
+        }
+    }
+
+
+@a2a_router.get(
     "/health",
     response_model=A2AHealthResponse,
     summary="A2A Health Check",

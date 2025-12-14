@@ -1,0 +1,20 @@
+{
+  "name": "A/B Test Validation Agent",
+  "description": "Multi-agent A/B test validation system using A2A protocol",
+  "version": "1.0.0",
+  "agent_id": "ab-test-validation-agent",
+  "capabilities": [
+    {
+      "id": "ab_test_validation",
+      "name": "A/B Test Validation",
+      "description": "Complete validation of A/B test experiments including data, code, reports, and statistical analysis"
+    }
+  ],
+  "endpoints": {
+    "info": "/info",
+    "manifest": "/a2a/manifest",
+    "capabilities": "/a2a/capabilities",
+    "invoke": "/a2a/invoke",
+    "health": "/a2a/health"
+  }
+}
