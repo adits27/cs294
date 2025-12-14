@@ -10,6 +10,7 @@ from .protocol import A2AMessage, MessageStatus, MessageType
 from .state import ABTestContext, ValidationState, create_initial_state, update_validation_state, merge_dicts
 from .orchestrator import OrchestratingAgent
 from .workflow import create_validation_workflow, run_validation_workflow
+from .parameter_inference_agent import ParameterInferenceAgent
 from .dummy_agents import (
     DataValidationAgent,
     CodeValidationAgent,
@@ -31,6 +32,7 @@ __all__ = [
     "OrchestratingAgent",
     "create_validation_workflow",
     "run_validation_workflow",
+    "ParameterInferenceAgent",
     "DataValidationAgent",
     "CodeValidationAgent",
     "ReportValidationAgent",

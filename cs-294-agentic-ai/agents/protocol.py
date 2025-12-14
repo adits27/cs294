@@ -38,6 +38,10 @@ class A2AMessage(BaseModel):
         default_factory=lambda: str(uuid4()),
         description="Unique identifier for this message"
     )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session identifier for tracking conversation context across multiple messages"
+    )
     sender: str = Field(
         ...,
         description="Identifier of the agent sending this message"
@@ -77,6 +81,7 @@ class A2AMessage(BaseModel):
         json_schema_extra = {
             "example": {
                 "message_id": "550e8400-e29b-41d4-a716-446655440000",
+                "session_id": "abc123-session-xyz789",
                 "sender": "orchestrator",
                 "receiver": "data_validator",
                 "message_type": "REQUEST",

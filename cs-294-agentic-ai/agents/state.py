@@ -7,8 +7,10 @@ all agents in the validation and assessment pipeline.
 
 from typing import Annotated, Any, Dict, List, TypedDict
 from operator import add
+from pathlib import Path
+import glob as glob_module
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .protocol import A2AMessage
 
@@ -42,47 +44,139 @@ class ABTestContext(BaseModel):
 
     This schema captures all the essential parameters and metadata
     needed to validate an A/B test experiment.
+
+    Parameters can be inferred from files if not provided explicitly.
+
+    Supports folder patterns:
+    - Single file: "path/to/file.csv"
+    - Folder pattern: "results/result_1_1/*" (discovers data_source/, code/, report/ subdirs)
+    - Specific folder: "results/result_1_1/data_source/*" (all files in folder)
     """
-    hypothesis: str = Field(
+    data_source: str = Field(
         ...,
-        description="The hypothesis being tested in the A/B experiment"
+        description="Path to data files. Can be a file path, folder path, or folder/* pattern (REQUIRED)"
     )
-    success_metrics: List[str] = Field(
-        ...,
-        description="List of metrics used to measure success (e.g., conversion_rate, revenue)"
+    code_source: str = Field(
+        default="",
+        description="Path to code files. Can be a file path, folder path, or folder/* pattern (optional)"
     )
+    report_source: str = Field(
+        default="",
+        description="Path to report files. Can be a file path, folder path, or folder/* pattern (optional)"
+    )
+
+    # Legacy field names for backward compatibility
     dataset_path: str = Field(
-        ...,
-        description="Path to the A/B test dataset"
+        default="",
+        description="[DEPRECATED] Use data_source instead"
     )
     code_path: str = Field(
         default="",
-        description="Path to the analysis code file (optional, defaults to dataset_path with .py extension)"
+        description="[DEPRECATED] Use code_source instead"
     )
     report_path: str = Field(
         default="",
-        description="Path to the analysis report file (optional, defaults to dataset_path with _report.md)"
+        description="[DEPRECATED] Use report_source instead"
+    )
+    hypothesis: str = Field(
+        default="",
+        description="The hypothesis being tested (inferred from files if not provided)"
+    )
+    success_metrics: List[str] = Field(
+        default_factory=list,
+        description="List of metrics used to measure success (inferred from files if not provided)"
     )
     expected_effect_size: float = Field(
-        ...,
-        description="Expected effect size for the test (e.g., minimum detectable effect)"
+        default=0.05,
+        description="Expected effect size for the test (inferred from files if not provided, default: 0.05)"
     )
     significance_level: float = Field(
         default=0.05,
-        description="Statistical significance level (alpha) for hypothesis testing"
+        description="Statistical significance level (alpha) for hypothesis testing (default: 0.05)"
     )
     power: float = Field(
         default=0.80,
-        description="Statistical power (1 - beta) for the test"
+        description="Statistical power (1 - beta) for the test (default: 0.80)"
     )
+
+    @model_validator(mode='after')
+    def resolve_paths(self):
+        """
+        Resolve folder patterns and handle backward compatibility.
+
+        - If legacy fields (dataset_path, code_path, report_path) are used, map to new fields
+        - If folder/* pattern is used, auto-discover subdirectories (data_source, code, report)
+        - Expand glob patterns to find actual files
+        """
+        # Handle backward compatibility: map old field names to new ones
+        if self.dataset_path and not self.data_source:
+            self.data_source = self.dataset_path
+        if self.code_path and not self.code_source:
+            self.code_source = self.code_path
+        if self.report_path and not self.report_source:
+            self.report_source = self.report_path
+
+        # Auto-discover subdirectories if folder/* pattern is used
+        if self.data_source and self.data_source.endswith('/*'):
+            base_folder = self.data_source[:-2]  # Remove /*
+            base_path = Path(base_folder)
+
+            # Auto-discover data_source subfolder if not explicitly set
+            if not self.data_source or self.data_source == f"{base_folder}/*":
+                data_folder = base_path / "data_source"
+                if data_folder.exists():
+                    self.data_source = str(data_folder / "*")
+
+            # Auto-discover code subfolder if not explicitly set
+            if not self.code_source:
+                code_folder = base_path / "code"
+                if code_folder.exists():
+                    self.code_source = str(code_folder / "*")
+
+            # Auto-discover report subfolder if not explicitly set
+            if not self.report_source:
+                report_folder = base_path / "report"
+                if report_folder.exists():
+                    self.report_source = str(report_folder / "*")
+
+        return self
+
+    def get_all_files(self, source_type: str) -> List[str]:
+        """
+        Get all files from a source path (supports glob patterns).
+
+        Args:
+            source_type: One of 'data', 'code', or 'report'
+
+        Returns:
+            List of file paths
+        """
+        source_map = {
+            'data': self.data_source,
+            'code': self.code_source,
+            'report': self.report_source
+        }
+
+        source_path = source_map.get(source_type, "")
+        if not source_path:
+            return []
+
+        # If it's a glob pattern, expand it
+        if '*' in source_path:
+            files = glob_module.glob(source_path)
+            # Filter out directories, only return files
+            return [f for f in files if Path(f).is_file()]
+        else:
+            # Single file path
+            if Path(source_path).is_file():
+                return [source_path]
+            return []
 
     class Config:
         """Pydantic configuration."""
         json_schema_extra = {
             "example": {
-                "hypothesis": "New checkout flow increases conversion rate",
-                "success_metrics": ["conversion_rate", "average_order_value"],
-                "dataset_path": "/data/ab_test_results.csv",
+                "data_source": "results/result_1_1/*",
                 "expected_effect_size": 0.05,
                 "significance_level": 0.05,
                 "power": 0.80

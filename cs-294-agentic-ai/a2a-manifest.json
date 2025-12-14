@@ -1,0 +1,151 @@
+{
+  "version": "1.0.0",
+  "agent": {
+    "id": "ab-test-validation-agent",
+    "name": "A/B Test Validation Agent",
+    "description": "Multi-agent system for validating A/B test experiments using specialized validation agents for data quality, code quality, report quality, and statistical validation",
+    "author": "CS294 Agentic AI",
+    "homepage": "https://github.com/yourusername/cs-294-agentic-ai",
+    "version": "1.0.0"
+  },
+  "capabilities": [
+    {
+      "id": "ab_test_validation",
+      "name": "A/B Test Validation",
+      "description": "Complete validation of A/B test experiments including data, code, reports, and statistical analysis",
+      "input_schema": {
+        "type": "object",
+        "required": ["hypothesis", "success_metrics", "dataset_path", "expected_effect_size"],
+        "properties": {
+          "hypothesis": {
+            "type": "string",
+            "description": "A/B test hypothesis"
+          },
+          "success_metrics": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of success metrics to measure"
+          },
+          "dataset_path": {
+            "type": "string",
+            "description": "Path to A/B test dataset"
+          },
+          "code_path": {
+            "type": "string",
+            "description": "Path to analysis code (optional)"
+          },
+          "report_path": {
+            "type": "string",
+            "description": "Path to report document (optional)"
+          },
+          "expected_effect_size": {
+            "type": "number",
+            "description": "Minimum detectable effect (MDE)"
+          },
+          "significance_level": {
+            "type": "number",
+            "default": 0.05,
+            "description": "Alpha level for statistical tests"
+          },
+          "power": {
+            "type": "number",
+            "default": 0.80,
+            "description": "Statistical power (1 - beta)"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["final_score", "decision", "validation_summary"],
+        "properties": {
+          "final_score": {
+            "type": "number",
+            "description": "Overall validation score (0-100)"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["GOOD A/B TEST", "BAD A/B TEST", "UNKNOWN"],
+            "description": "Final validation decision"
+          },
+          "validation_summary": {
+            "type": "string",
+            "description": "Human-readable validation summary"
+          },
+          "breakdown": {
+            "type": "object",
+            "description": "Score breakdown by validation category",
+            "properties": {
+              "statistical_validation": {"type": "number"},
+              "report_quality": {"type": "number"},
+              "data_quality": {"type": "number"},
+              "code_quality": {"type": "number"}
+            }
+          },
+          "validation_results": {
+            "type": "object",
+            "description": "Detailed validation results from all agents"
+          }
+        }
+      }
+    },
+    {
+      "id": "data_validation",
+      "name": "Data Validation",
+      "description": "Validate data quality, completeness, missing values, and distributions",
+      "weight": 0.20
+    },
+    {
+      "id": "code_validation",
+      "name": "Code Validation",
+      "description": "Validate code structure, best practices, and documentation",
+      "weight": 0.10
+    },
+    {
+      "id": "report_validation",
+      "name": "Report Validation",
+      "description": "Validate report structure, clarity, and visualizations",
+      "weight": 0.30
+    },
+    {
+      "id": "statistical_validation",
+      "name": "Statistical Validation",
+      "description": "Validate power analysis, significance tests, and effect sizes",
+      "weight": 0.40
+    }
+  ],
+  "endpoints": {
+    "base_url": "${PUBLIC_URL}",
+    "api_version": "v1",
+    "paths": {
+      "manifest": "/a2a/manifest",
+      "invoke": "/a2a/invoke",
+      "capabilities": "/a2a/capabilities",
+      "status": "/a2a/status/{session_id}",
+      "result": "/a2a/result/{session_id}",
+      "health": "/a2a/health"
+    }
+  },
+  "authentication": {
+    "type": "bearer",
+    "required": false,
+    "description": "Optional API key authentication via Bearer token"
+  },
+  "protocol": {
+    "version": "1.0",
+    "message_format": "json",
+    "supports_streaming": false,
+    "supports_async": true,
+    "timeout_seconds": 300
+  },
+  "rate_limits": {
+    "requests_per_minute": 60,
+    "concurrent_sessions": 10
+  },
+  "metadata": {
+    "tags": ["validation", "ab-testing", "statistics", "data-quality", "multi-agent"],
+    "category": "data-analysis",
+    "license": "MIT",
+    "documentation_url": "https://github.com/yourusername/cs-294-agentic-ai/blob/main/README.md",
+    "support_email": "support@example.com"
+  }
+}

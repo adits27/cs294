@@ -18,6 +18,94 @@ logger = setup_logger(__name__)
 orchestrator = OrchestratingAgent()
 
 
+def infer_parameters_node(state: ValidationState) -> ValidationState:
+    """
+    Node 0: Infer A/B test parameters from files if not provided.
+
+    Uses the ParameterInferenceAgent to extract hypothesis, metrics, effect size, etc.
+    from the dataset, code, and report files.
+
+    Args:
+        state: Current validation state
+
+    Returns:
+        ValidationState: Updated state with inferred parameters in ab_test_context
+    """
+    from .parameter_inference_agent import ParameterInferenceAgent
+
+    ab_test_context = state["ab_test_context"]
+
+    # Check if we need to infer parameters
+    needs_inference = (
+        not ab_test_context.hypothesis or
+        not ab_test_context.success_metrics
+    )
+
+    if not needs_inference:
+        print("\n[WORKFLOW] Node 0: Parameters already provided, skipping inference...")
+        return state
+
+    print("\n[WORKFLOW] Node 0: Inferring parameters from files...")
+
+    # Create inference agent
+    inference_agent = ParameterInferenceAgent()
+
+    # Create request message
+    request = A2AMessage(
+        sender="workflow",
+        receiver="param_inference_agent",
+        message_type="REQUEST",
+        task="Infer A/B test parameters from provided files",
+        data={
+            "ab_test_context": ab_test_context,
+        }
+    )
+
+    # Process request
+    response = inference_agent.process_request(request)
+
+    if response.status == MessageStatus.COMPLETED:
+        inferred_params = response.result.get("inferred_parameters", {})
+
+        # Update ab_test_context with inferred parameters (only if not already set)
+        if not ab_test_context.hypothesis:
+            ab_test_context.hypothesis = inferred_params.get("hypothesis", "")
+
+        if not ab_test_context.success_metrics:
+            ab_test_context.success_metrics = inferred_params.get("success_metrics", [])
+
+        if ab_test_context.expected_effect_size == 0.05:  # default value
+            ab_test_context.expected_effect_size = inferred_params.get("expected_effect_size", 0.05)
+
+        if ab_test_context.significance_level == 0.05:  # default value
+            ab_test_context.significance_level = inferred_params.get("significance_level", 0.05)
+
+        if ab_test_context.power == 0.80:  # default value
+            ab_test_context.power = inferred_params.get("power", 0.80)
+
+        print(f"\n  ✓ Inferred Parameters:")
+        print(f"    Hypothesis: {ab_test_context.hypothesis[:80]}...")
+        print(f"    Metrics: {ab_test_context.success_metrics}")
+        print(f"    Effect Size: {ab_test_context.expected_effect_size}")
+        print(f"    Confidence: {inferred_params.get('confidence', 'unknown')}")
+
+        # Update state
+        updated_state = state.copy()
+        updated_state["ab_test_context"] = ab_test_context
+
+        # Log inference message
+        updated_state = update_validation_state(
+            updated_state,
+            message=response
+        )
+
+        return updated_state
+    else:
+        print(f"  ✗ Parameter inference failed: {response.result.get('error', 'Unknown error')}")
+        print(f"    Continuing with default/provided parameters...")
+        return state
+
+
 def plan_validation_node(state: ValidationState) -> ValidationState:
     """
     Node 1: Plan which sub-agents to call for validation.
@@ -290,6 +378,7 @@ def create_validation_workflow() -> StateGraph:
     Create the LangGraph StateGraph for A/B test validation with parallel execution.
 
     The workflow consists of:
+    0. infer_parameters: Extract parameters from files if not provided
     1. plan_validation: Decide which agents to call
     2. delegate_to_agents: Send A2A requests to sub-agents
     3. Four parallel validation nodes (data, code, report, stats)
@@ -305,6 +394,7 @@ def create_validation_workflow() -> StateGraph:
     workflow = StateGraph(ValidationState)
 
     # Add nodes
+    workflow.add_node("infer_parameters", infer_parameters_node)
     workflow.add_node("plan_validation", plan_validation_node)
     workflow.add_node("delegate_to_agents", delegate_to_agents_node)
 
@@ -317,7 +407,8 @@ def create_validation_workflow() -> StateGraph:
     workflow.add_node("synthesize_results", synthesize_results_node)
 
     # Define edges
-    workflow.set_entry_point("plan_validation")
+    workflow.set_entry_point("infer_parameters")
+    workflow.add_edge("infer_parameters", "plan_validation")
     workflow.add_edge("plan_validation", "delegate_to_agents")
 
     # Parallel branches: delegate_to_agents fans out to 4 validation nodes
