@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ab-test-validator
+    env: python
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: agentbeats run_ctrl
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PUBLIC_URL
+        value: https://ab-test-validator.onrender.com
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEFAULT_LLM_PROVIDER
+        value: google
+      - key: DEFAULT_MODEL
+        value: gemini-pro
+      - key: VALIDATION_THRESHOLD
+        value: 70.0
+      - key: ENABLE_DATA_VALIDATION
+        value: true
+      - key: ENABLE_CODE_VALIDATION
+        value: true
+      - key: ENABLE_REPORT_VALIDATION
+        value: true
+      - key: ENABLE_STATISTICAL_VALIDATION
+        value: true
