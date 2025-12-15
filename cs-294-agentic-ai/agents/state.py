@@ -107,6 +107,7 @@ class ABTestContext(BaseModel):
         - If legacy fields (dataset_path, code_path, report_path) are used, map to new fields
         - If folder/* pattern is used, auto-discover subdirectories (data_source, code, report)
         - Expand glob patterns to find actual files
+        - Supports both local paths and R2 paths
         """
         # Handle backward compatibility: map old field names to new ones
         if self.dataset_path and not self.data_source:
@@ -119,24 +120,78 @@ class ABTestContext(BaseModel):
         # Auto-discover subdirectories if folder/* pattern is used
         if self.data_source and self.data_source.endswith('/*'):
             base_folder = self.data_source[:-2]  # Remove /*
-            base_path = Path(base_folder)
 
-            # Auto-discover data_source subfolder
-            data_folder = base_path / "data_source"
-            if data_folder.exists():
-                self.data_source = str(data_folder / "*")
+            # Check if this is an R2 path or local path
+            from .storage import is_r2_path, get_r2_storage
 
-            # Auto-discover code subfolder if not explicitly set
-            if not self.code_source:
-                code_folder = base_path / "code"
-                if code_folder.exists():
-                    self.code_source = str(code_folder / "*")
+            if is_r2_path(base_folder):
+                # R2 path - check for subdirectories in R2
+                r2 = get_r2_storage()
+                if r2.is_configured():
+                    try:
+                        # Normalize R2 prefix
+                        r2_prefix = base_folder
+                        if r2_prefix.startswith('r2://') or r2_prefix.startswith('s3://'):
+                            parts = r2_prefix.split('/', 3)
+                            if len(parts) >= 4:
+                                r2_prefix = parts[3]
 
-            # Auto-discover report subfolder if not explicitly set
-            if not self.report_source:
-                report_folder = base_path / "report"
-                if report_folder.exists():
-                    self.report_source = str(report_folder / "*")
+                        # Ensure prefix ends with /
+                        if not r2_prefix.endswith('/'):
+                            r2_prefix += '/'
+
+                        # List objects to check for subdirectories
+                        response = r2.client.list_objects_v2(
+                            Bucket=r2.bucket,
+                            Prefix=r2_prefix,
+                            Delimiter='/'
+                        )
+
+                        # Get common prefixes (subdirectories)
+                        if 'CommonPrefixes' in response:
+                            subdirs = [prefix['Prefix'] for prefix in response['CommonPrefixes']]
+
+                            # Auto-discover data_source subfolder
+                            data_subdir = f"{r2_prefix}data_source/"
+                            if data_subdir in subdirs:
+                                self.data_source = f"{base_folder}/data_source/*"
+
+                            # Auto-discover code subfolder if not explicitly set
+                            if not self.code_source:
+                                code_subdir = f"{r2_prefix}code/"
+                                if code_subdir in subdirs:
+                                    self.code_source = f"{base_folder}/code/*"
+
+                            # Auto-discover report subfolder if not explicitly set
+                            if not self.report_source:
+                                report_subdir = f"{r2_prefix}report/"
+                                if report_subdir in subdirs:
+                                    self.report_source = f"{base_folder}/report/*"
+                    except Exception as e:
+                        # If R2 check fails, keep original paths
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Failed to auto-discover R2 subdirectories: {str(e)}")
+            else:
+                # Local path - use original logic
+                base_path = Path(base_folder)
+
+                # Auto-discover data_source subfolder
+                data_folder = base_path / "data_source"
+                if data_folder.exists():
+                    self.data_source = str(data_folder / "*")
+
+                # Auto-discover code subfolder if not explicitly set
+                if not self.code_source:
+                    code_folder = base_path / "code"
+                    if code_folder.exists():
+                        self.code_source = str(code_folder / "*")
+
+                # Auto-discover report subfolder if not explicitly set
+                if not self.report_source:
+                    report_folder = base_path / "report"
+                    if report_folder.exists():
+                        self.report_source = str(report_folder / "*")
 
         return self
 
