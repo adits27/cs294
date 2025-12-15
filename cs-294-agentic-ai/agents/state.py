@@ -141,6 +141,10 @@ class ABTestContext(BaseModel):
                             r2_prefix += '/'
 
                         # List objects to check for subdirectories
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info(f"Auto-discovery: Listing R2 subdirectories with prefix: {r2_prefix}")
+
                         response = r2.client.list_objects_v2(
                             Bucket=r2.bucket,
                             Prefix=r2_prefix,
@@ -150,23 +154,29 @@ class ABTestContext(BaseModel):
                         # Get common prefixes (subdirectories)
                         if 'CommonPrefixes' in response:
                             subdirs = [prefix['Prefix'] for prefix in response['CommonPrefixes']]
+                            logger.info(f"Auto-discovery: Found {len(subdirs)} subdirectories: {subdirs}")
 
                             # Auto-discover data_source subfolder
                             data_subdir = f"{r2_prefix}data_source/"
                             if data_subdir in subdirs:
                                 self.data_source = f"{base_folder}/data_source/*"
+                                logger.info(f"Auto-discovery: Set data_source to {self.data_source}")
 
                             # Auto-discover code subfolder if not explicitly set
                             if not self.code_source:
                                 code_subdir = f"{r2_prefix}code/"
                                 if code_subdir in subdirs:
                                     self.code_source = f"{base_folder}/code/*"
+                                    logger.info(f"Auto-discovery: Set code_source to {self.code_source}")
 
                             # Auto-discover report subfolder if not explicitly set
                             if not self.report_source:
                                 report_subdir = f"{r2_prefix}report/"
                                 if report_subdir in subdirs:
                                     self.report_source = f"{base_folder}/report/*"
+                                    logger.info(f"Auto-discovery: Set report_source to {self.report_source}")
+                        else:
+                            logger.warning(f"Auto-discovery: No CommonPrefixes found in R2 response for prefix: {r2_prefix}")
                     except Exception as e:
                         # If R2 check fails, keep original paths
                         import logging
