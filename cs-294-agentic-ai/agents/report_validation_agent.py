@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from .base_agent import BaseAgent
 from .protocol import A2AMessage, MessageStatus
 from .logger import setup_logger
+from .storage import resolve_path, is_r2_path, get_r2_storage
 
 load_dotenv()
 logger = setup_logger(__name__)
@@ -69,21 +70,81 @@ class ReportValidationAgent(BaseAgent):
         if not report_source:
             report_source = ab_test_context.get("report_path", data_source.replace(".csv", "_report.md"))
 
-        # Expand glob pattern if present
-        if '*' in report_source:
-            report_files = glob.glob(report_source)
-            # Filter to only .md files
-            report_files = [f for f in report_files if Path(f).is_file() and f.endswith('.md')]
-            if report_files:
-                report_source = report_files[0]  # Use first report file found
-                logger.info(f"Found {len(report_files)} report file(s), using: {report_source}")
+        logger.info(f"Resolving report source: {report_source}")
+
+        # Handle R2 paths and glob patterns
+        local_report_path = ""
+        if report_source:
+            # Check if it's an R2 path (will download from R2 if needed)
+            if is_r2_path(report_source):
+                logger.info(f"Detected R2 path: {report_source}")
+
+                # If it's a glob pattern, expand it to find files
+                if '*' in report_source:
+                    # For R2, we need to handle this differently
+                    # Extract base path and try to resolve
+                    base_path = report_source.rstrip('/*')
+                    logger.info(f"Attempting to resolve R2 directory pattern: {base_path}")
+
+                    # Try to resolve as a directory pattern
+                    try:
+                        import tempfile
+                        r2 = get_r2_storage()
+
+                        # List objects with this prefix and download report files
+                        if r2.is_configured():
+                            temp_dir = tempfile.mkdtemp(prefix='r2_report_')
+
+                            # Download directory contents
+                            r2_prefix = base_path
+                            if r2_prefix.startswith('r2://') or r2_prefix.startswith('s3://'):
+                                parts = r2_prefix.split('/', 3)
+                                if len(parts) >= 4:
+                                    r2_prefix = parts[3]
+
+                            downloaded_files = r2.download_directory(r2_prefix, temp_dir)
+
+                            # Filter to report files (md, html, txt)
+                            report_files = [path for key, path in downloaded_files.items()
+                                          if path.endswith(('.md', '.html', '.txt'))]
+                            if report_files:
+                                local_report_path = report_files[0]
+                                logger.info(f"Downloaded {len(report_files)} report file(s) from R2, using: {local_report_path}")
+                            else:
+                                logger.warning(f"No report files found in R2 path: {report_source}")
+                        else:
+                            logger.warning("R2 storage not configured")
+                    except Exception as e:
+                        logger.error(f"Failed to download from R2: {str(e)}")
+                else:
+                    # Single file path from R2
+                    try:
+                        local_report_path = resolve_path(report_source)
+                        logger.info(f"Downloaded file from R2 to: {local_report_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to resolve R2 path: {str(e)}")
             else:
-                logger.warning(f"No report files found matching pattern: {report_source}")
-                report_source = ""
+                # Local file path
+                if '*' in report_source:
+                    report_files = glob.glob(report_source)
+                    # Filter to only report files
+                    report_files = [f for f in report_files if Path(f).is_file() and f.endswith(('.md', '.html', '.txt'))]
+                    if report_files:
+                        local_report_path = report_files[0]  # Use first report file found
+                        logger.info(f"Found {len(report_files)} local report file(s), using: {local_report_path}")
+                    else:
+                        logger.warning(f"No local report files found matching pattern: {report_source}")
+                else:
+                    # Single local file
+                    if Path(report_source).is_file():
+                        local_report_path = report_source
+                        logger.info(f"Using local file: {local_report_path}")
+                    else:
+                        logger.warning(f"Local file not found: {report_source}")
 
-        logger.info(f"Starting report validation for: {report_source}")
+        logger.info(f"Starting report validation for: {local_report_path}")
 
-        report_content = self._load_report(report_source)
+        report_content = self._load_report(local_report_path)
         validation_result = self._validate_report(report_content, ab_test_context)
 
         logger.info(f"Report validation completed - Score: {validation_result['score']:.1f}")

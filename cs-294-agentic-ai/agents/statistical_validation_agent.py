@@ -17,6 +17,7 @@ from .base_agent import BaseAgent
 from .protocol import A2AMessage, MessageStatus
 from .tools import python_repl
 from .logger import setup_logger
+from .storage import resolve_path, is_r2_path, get_r2_storage
 
 load_dotenv()
 logger = setup_logger(__name__)
@@ -69,26 +70,85 @@ class StatisticalValidationAgent(BaseAgent):
         if not data_source:
             data_source = ab_test_context.get("dataset_path", "")
 
-        # Expand glob pattern if present
-        if '*' in data_source:
-            data_files = glob.glob(data_source)
-            # Filter to only .csv files
-            data_files = [f for f in data_files if Path(f).is_file() and f.endswith('.csv')]
-            if data_files:
-                data_source = data_files[0]  # Use first data file found
-                logger.info(f"Found {len(data_files)} data file(s), using: {data_source}")
+        logger.info(f"Resolving data source: {data_source}")
+
+        # Handle R2 paths and glob patterns
+        local_data_path = ""
+        if data_source:
+            # Check if it's an R2 path (will download from R2 if needed)
+            if is_r2_path(data_source):
+                logger.info(f"Detected R2 path: {data_source}")
+
+                # If it's a glob pattern, expand it to find files
+                if '*' in data_source:
+                    # For R2, we need to handle this differently
+                    # Extract base path and try to resolve
+                    base_path = data_source.rstrip('/*')
+                    logger.info(f"Attempting to resolve R2 directory pattern: {base_path}")
+
+                    # Try to resolve as a directory pattern
+                    try:
+                        import tempfile
+                        r2 = get_r2_storage()
+
+                        # List objects with this prefix and download CSV files
+                        if r2.is_configured():
+                            temp_dir = tempfile.mkdtemp(prefix='r2_stats_')
+
+                            # Download directory contents
+                            r2_prefix = base_path
+                            if r2_prefix.startswith('r2://') or r2_prefix.startswith('s3://'):
+                                parts = r2_prefix.split('/', 3)
+                                if len(parts) >= 4:
+                                    r2_prefix = parts[3]
+
+                            downloaded_files = r2.download_directory(r2_prefix, temp_dir)
+
+                            # Filter to CSV files
+                            csv_files = [path for key, path in downloaded_files.items() if path.endswith('.csv')]
+                            if csv_files:
+                                local_data_path = csv_files[0]
+                                logger.info(f"Downloaded {len(csv_files)} CSV file(s) from R2, using: {local_data_path}")
+                            else:
+                                logger.warning(f"No CSV files found in R2 path: {data_source}")
+                        else:
+                            logger.warning("R2 storage not configured")
+                    except Exception as e:
+                        logger.error(f"Failed to download from R2: {str(e)}")
+                else:
+                    # Single file path from R2
+                    try:
+                        local_data_path = resolve_path(data_source)
+                        logger.info(f"Downloaded file from R2 to: {local_data_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to resolve R2 path: {str(e)}")
             else:
-                logger.warning(f"No data files found matching pattern: {data_source}")
-                data_source = ""
+                # Local file path
+                if '*' in data_source:
+                    data_files = glob.glob(data_source)
+                    # Filter to only .csv files
+                    data_files = [f for f in data_files if Path(f).is_file() and f.endswith('.csv')]
+                    if data_files:
+                        local_data_path = data_files[0]  # Use first data file found
+                        logger.info(f"Found {len(data_files)} local data file(s), using: {local_data_path}")
+                    else:
+                        logger.warning(f"No local data files found matching pattern: {data_source}")
+                else:
+                    # Single local file
+                    if Path(data_source).is_file():
+                        local_data_path = data_source
+                        logger.info(f"Using local file: {local_data_path}")
+                    else:
+                        logger.warning(f"Local file not found: {data_source}")
 
         expected_effect_size = ab_test_context.get("expected_effect_size", 0.05)
         significance_level = ab_test_context.get("significance_level", 0.05)
         target_power = ab_test_context.get("power", 0.80)
 
-        logger.info(f"Starting statistical validation - Dataset: {data_source}, Effect: {expected_effect_size}, Power: {target_power}")
+        logger.info(f"Starting statistical validation - Dataset: {local_data_path}, Effect: {expected_effect_size}, Power: {target_power}")
 
         tool_result = self._validate_with_tool(
-            data_source,
+            local_data_path,
             expected_effect_size,
             significance_level,
             target_power,

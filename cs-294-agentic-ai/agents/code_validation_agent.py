@@ -17,6 +17,7 @@ from .base_agent import BaseAgent
 from .protocol import A2AMessage, MessageStatus
 from .tools import python_repl
 from .logger import setup_logger
+from .storage import resolve_path, is_r2_path, get_r2_storage
 
 load_dotenv()
 logger = setup_logger(__name__)
@@ -71,21 +72,80 @@ class CodeValidationAgent(BaseAgent):
         if not code_source:
             code_source = ab_test_context.get("code_path", data_source.replace(".csv", ".py"))
 
-        # Expand glob pattern if present
-        if '*' in code_source:
-            code_files = glob.glob(code_source)
-            # Filter to only .py files
-            code_files = [f for f in code_files if Path(f).is_file() and f.endswith('.py')]
-            if code_files:
-                code_source = code_files[0]  # Use first code file found
-                logger.info(f"Found {len(code_files)} code file(s), using: {code_source}")
+        logger.info(f"Resolving code source: {code_source}")
+
+        # Handle R2 paths and glob patterns
+        local_code_path = ""
+        if code_source:
+            # Check if it's an R2 path (will download from R2 if needed)
+            if is_r2_path(code_source):
+                logger.info(f"Detected R2 path: {code_source}")
+
+                # If it's a glob pattern, expand it to find files
+                if '*' in code_source:
+                    # For R2, we need to handle this differently
+                    # Extract base path and try to resolve
+                    base_path = code_source.rstrip('/*')
+                    logger.info(f"Attempting to resolve R2 directory pattern: {base_path}")
+
+                    # Try to resolve as a directory pattern
+                    try:
+                        import tempfile
+                        r2 = get_r2_storage()
+
+                        # List objects with this prefix and download Python files
+                        if r2.is_configured():
+                            temp_dir = tempfile.mkdtemp(prefix='r2_code_')
+
+                            # Download directory contents
+                            r2_prefix = base_path
+                            if r2_prefix.startswith('r2://') or r2_prefix.startswith('s3://'):
+                                parts = r2_prefix.split('/', 3)
+                                if len(parts) >= 4:
+                                    r2_prefix = parts[3]
+
+                            downloaded_files = r2.download_directory(r2_prefix, temp_dir)
+
+                            # Filter to Python files
+                            py_files = [path for key, path in downloaded_files.items() if path.endswith('.py')]
+                            if py_files:
+                                local_code_path = py_files[0]
+                                logger.info(f"Downloaded {len(py_files)} Python file(s) from R2, using: {local_code_path}")
+                            else:
+                                logger.warning(f"No Python files found in R2 path: {code_source}")
+                        else:
+                            logger.warning("R2 storage not configured")
+                    except Exception as e:
+                        logger.error(f"Failed to download from R2: {str(e)}")
+                else:
+                    # Single file path from R2
+                    try:
+                        local_code_path = resolve_path(code_source)
+                        logger.info(f"Downloaded file from R2 to: {local_code_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to resolve R2 path: {str(e)}")
             else:
-                logger.warning(f"No code files found matching pattern: {code_source}")
-                code_source = ""
+                # Local file path
+                if '*' in code_source:
+                    code_files = glob.glob(code_source)
+                    # Filter to only .py files
+                    code_files = [f for f in code_files if Path(f).is_file() and f.endswith('.py')]
+                    if code_files:
+                        local_code_path = code_files[0]  # Use first code file found
+                        logger.info(f"Found {len(code_files)} local code file(s), using: {local_code_path}")
+                    else:
+                        logger.warning(f"No local code files found matching pattern: {code_source}")
+                else:
+                    # Single local file
+                    if Path(code_source).is_file():
+                        local_code_path = code_source
+                        logger.info(f"Using local file: {local_code_path}")
+                    else:
+                        logger.warning(f"Local file not found: {code_source}")
 
-        logger.info(f"Starting code validation for: {code_source}")
+        logger.info(f"Starting code validation for: {local_code_path}")
 
-        syntax_result = self._validate_syntax(code_source)
+        syntax_result = self._validate_syntax(local_code_path)
 
         if not syntax_result['valid']:
             logger.error(f"Syntax validation failed: {syntax_result['error']}")
