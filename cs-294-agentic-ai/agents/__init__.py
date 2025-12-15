@@ -15,6 +15,7 @@ from .data_validation_agent import DataValidationAgent
 from .code_validation_agent import CodeValidationAgent
 from .report_validation_agent import ReportValidationAgent
 from .statistical_validation_agent import StatisticalValidationAgent
+from .storage import resolve_path, resolve_directory, get_r2_storage, is_r2_path
 
 __all__ = [
     "BaseAgent",
@@ -34,6 +35,10 @@ __all__ = [
     "CodeValidationAgent",
     "ReportValidationAgent",
     "StatisticalValidationAgent",
+    "resolve_path",
+    "resolve_directory",
+    "get_r2_storage",
+    "is_r2_path",
 ]
 
 __version__ = "0.1.0"
