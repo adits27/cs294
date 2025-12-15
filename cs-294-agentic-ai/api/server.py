@@ -260,8 +260,9 @@ async def info():
 
 # Agent card endpoint (AgentBeats verification)
 @app.get("/.well-known/agent-card.json", include_in_schema=False)
+@app.head("/.well-known/agent-card.json", include_in_schema=False)
 async def agent_card():
-    """Agent card for AgentBeats verification"""
+    """Agent card for AgentBeats verification (supports GET and HEAD)"""
     from pathlib import Path
     import json
 

@@ -190,8 +190,13 @@ async def run_validation_async(session_id: str, ab_test_context: ABTestContext, 
     summary="Get A2A Manifest",
     description="Returns the A2A manifest describing agent capabilities and endpoints"
 )
+@a2a_router.head(
+    "/manifest",
+    summary="Check A2A Manifest",
+    description="Check if A2A manifest is available (HEAD request)"
+)
 async def get_manifest():
-    """Return A2A manifest"""
+    """Return A2A manifest (supports GET and HEAD)"""
     manifest_path = Path(__file__).parent.parent / "a2a-manifest.json"
 
     if not manifest_path.exists():
@@ -212,6 +217,11 @@ async def get_manifest():
     response_model=A2ACapabilitiesResponse,
     summary="List Agent Capabilities",
     description="Returns list of all capabilities this agent supports"
+)
+@a2a_router.head(
+    "/capabilities",
+    summary="Check Agent Capabilities",
+    description="Check if capabilities endpoint is available (HEAD request)"
 )
 async def get_capabilities():
     """List all A2A capabilities"""
@@ -476,8 +486,13 @@ async def get_session_result(session_id: str):
     summary="Get Agent Info",
     description="Get basic agent information (AgentBeats compatible endpoint)"
 )
+@a2a_router.head(
+    "/info",
+    summary="Check Agent Info",
+    description="Check if agent info endpoint is available (HEAD request)"
+)
 async def get_agent_info():
-    """Return basic agent information for AgentBeats controller"""
+    """Return basic agent information for AgentBeats controller (supports GET and HEAD)"""
     return {
         "agent_id": "ab-test-validation-agent",
         "agent_name": "A/B Test Validation Agent",
@@ -499,8 +514,13 @@ async def get_agent_info():
     summary="A2A Health Check",
     description="Check agent health and availability"
 )
+@a2a_router.head(
+    "/health",
+    summary="A2A Health Check (HEAD)",
+    description="Check agent health endpoint availability (HEAD request)"
+)
 async def a2a_health_check():
-    """A2A protocol health check"""
+    """A2A protocol health check (supports GET and HEAD)"""
     return A2AHealthResponse(
         status="healthy",
         agent_id="ab-test-validation-agent",
