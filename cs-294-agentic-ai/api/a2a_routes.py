@@ -304,16 +304,17 @@ async def invoke_capability(request: A2AInvokeRequest, background_tasks: Backgro
             )
 
         # Create ABTestContext from input - use new field names, fallback to legacy
-        ab_test_context = ABTestContext(
-            data_source=request.input.get("data_source") or request.input.get("dataset_path", ""),
-            code_source=request.input.get("code_source") or request.input.get("code_path", ""),
-            report_source=request.input.get("report_source") or request.input.get("report_path", ""),
-            hypothesis=request.input.get("hypothesis", ""),
-            success_metrics=request.input.get("success_metrics", []),
-            expected_effect_size=request.input.get("expected_effect_size", 0.05),
-            significance_level=request.input.get("significance_level", 0.05),
-            power=request.input.get("power", 0.80),
-        )
+        # Use model_validate to ensure @model_validator runs (for auto-discovery)
+        ab_test_context = ABTestContext.model_validate({
+            "data_source": request.input.get("data_source") or request.input.get("dataset_path", ""),
+            "code_source": request.input.get("code_source") or request.input.get("code_path", ""),
+            "report_source": request.input.get("report_source") or request.input.get("report_path", ""),
+            "hypothesis": request.input.get("hypothesis", ""),
+            "success_metrics": request.input.get("success_metrics", []),
+            "expected_effect_size": request.input.get("expected_effect_size", 0.05),
+            "significance_level": request.input.get("significance_level", 0.05),
+            "power": request.input.get("power", 0.80),
+        })
 
         task_description = request.context.get("task_description", "Validate A/B test experiment")
 

@@ -303,22 +303,23 @@ async def validate_workflow(request: WorkflowValidateRequest):
 
     try:
         # Convert request to ABTestContext
-        ab_test_context = ABTestContext(
+        # Use model_validate to ensure @model_validator runs (for auto-discovery)
+        ab_test_context = ABTestContext.model_validate({
             # New field names
-            data_source=request.ab_test_context.data_source,
-            code_source=request.ab_test_context.code_source,
-            report_source=request.ab_test_context.report_source,
+            "data_source": request.ab_test_context.data_source,
+            "code_source": request.ab_test_context.code_source,
+            "report_source": request.ab_test_context.report_source,
             # Legacy field names (backward compatibility)
-            dataset_path=request.ab_test_context.dataset_path,
-            code_path=request.ab_test_context.code_path,
-            report_path=request.ab_test_context.report_path,
+            "dataset_path": request.ab_test_context.dataset_path,
+            "code_path": request.ab_test_context.code_path,
+            "report_path": request.ab_test_context.report_path,
             # Optional parameters
-            hypothesis=request.ab_test_context.hypothesis,
-            success_metrics=request.ab_test_context.success_metrics,
-            expected_effect_size=request.ab_test_context.expected_effect_size,
-            significance_level=request.ab_test_context.significance_level,
-            power=request.ab_test_context.power,
-        )
+            "hypothesis": request.ab_test_context.hypothesis,
+            "success_metrics": request.ab_test_context.success_metrics,
+            "expected_effect_size": request.ab_test_context.expected_effect_size,
+            "significance_level": request.ab_test_context.significance_level,
+            "power": request.ab_test_context.power,
+        })
 
         # Create initial state
         initial_state = create_initial_state(
@@ -388,22 +389,23 @@ async def validate_workflow_async(request: WorkflowValidateRequest, background_t
 
     try:
         # Convert request to ABTestContext
-        ab_test_context = ABTestContext(
+        # Use model_validate to ensure @model_validator runs (for auto-discovery)
+        ab_test_context = ABTestContext.model_validate({
             # New field names
-            data_source=request.ab_test_context.data_source,
-            code_source=request.ab_test_context.code_source,
-            report_source=request.ab_test_context.report_source,
+            "data_source": request.ab_test_context.data_source,
+            "code_source": request.ab_test_context.code_source,
+            "report_source": request.ab_test_context.report_source,
             # Legacy field names (backward compatibility)
-            dataset_path=request.ab_test_context.dataset_path,
-            code_path=request.ab_test_context.code_path,
-            report_path=request.ab_test_context.report_path,
+            "dataset_path": request.ab_test_context.dataset_path,
+            "code_path": request.ab_test_context.code_path,
+            "report_path": request.ab_test_context.report_path,
             # Optional parameters
-            hypothesis=request.ab_test_context.hypothesis,
-            success_metrics=request.ab_test_context.success_metrics,
-            expected_effect_size=request.ab_test_context.expected_effect_size,
-            significance_level=request.ab_test_context.significance_level,
-            power=request.ab_test_context.power,
-        )
+            "hypothesis": request.ab_test_context.hypothesis,
+            "success_metrics": request.ab_test_context.success_metrics,
+            "expected_effect_size": request.ab_test_context.expected_effect_size,
+            "significance_level": request.ab_test_context.significance_level,
+            "power": request.ab_test_context.power,
+        })
 
         # Create initial state
         initial_state = create_initial_state(
