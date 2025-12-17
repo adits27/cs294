@@ -223,6 +223,9 @@ app.include_router(router, prefix="/api/v1", tags=["A2A Validation API"])
 from api.a2a_routes import a2a_router
 app.include_router(a2a_router, prefix="/a2a", tags=["A2A Protocol"])
 
+# Include A2A routes under /to_agent/{agent_id} path for AgentBeats controller
+app.include_router(a2a_router, prefix="/to_agent/{agent_id}/a2a", tags=["A2A Protocol (Controller)"])
+
 
 # Root endpoint
 @app.get("/", include_in_schema=False)
@@ -254,6 +257,41 @@ async def info():
             "invoke": "/a2a/invoke",
             "health": "/a2a/health",
             "info": "/a2a/info"
+        }
+    }
+
+
+# AgentBeats controller proxy endpoint
+@app.get("/to_agent/{agent_id}", include_in_schema=False)
+@app.head("/to_agent/{agent_id}", include_in_schema=False)
+async def agent_proxy_root(agent_id: str):
+    """Root endpoint for AgentBeats controller proxy"""
+    return {
+        "agent_id": agent_id,
+        "status": "running",
+        "agent_card": f"/.well-known/agent-card.json",
+        "health": f"/to_agent/{agent_id}/a2a/health",
+        "info": f"/to_agent/{agent_id}/info"
+    }
+
+
+# AgentBeats controller info endpoint
+@app.get("/to_agent/{agent_id}/info", include_in_schema=False)
+async def agent_proxy_info(agent_id: str):
+    """Info endpoint for AgentBeats controller proxy"""
+    return {
+        "agent_id": "ab-test-validation-agent",
+        "controller_agent_id": agent_id,
+        "agent_name": "A/B Test Validation Agent",
+        "version": API_VERSION,
+        "description": "Multi-agent A/B test validation system using A2A protocol",
+        "capabilities": ["ab_test_validation"],
+        "endpoints": {
+            "manifest": f"/to_agent/{agent_id}/a2a/manifest",
+            "capabilities": f"/to_agent/{agent_id}/a2a/capabilities",
+            "invoke": f"/to_agent/{agent_id}/a2a/invoke",
+            "health": f"/to_agent/{agent_id}/a2a/health",
+            "info": f"/to_agent/{agent_id}/a2a/info"
         }
     }
 
