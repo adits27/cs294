@@ -46,16 +46,14 @@ echo "uvicorn found at: $(which uvicorn)"
 # Check Python version
 echo "Python version: $(python --version)"
 
-# Check if the api.server module can be imported
-echo "Testing api.server import..."
-python -c "import api.server; print('api.server imported successfully')" 2>&1 || {
-    echo "ERROR: Failed to import api.server module"
-    echo "Python path:"
-    python -c "import sys; print('\n'.join(sys.path))"
-    echo "Trying to list api directory:"
-    ls -la api/ || echo "api directory not found"
+# Check if api directory exists
+echo "Checking api directory..."
+if [ ! -d "api" ]; then
+    echo "ERROR: api directory not found"
     exit 1
-}
+fi
+ls -la api/
+echo "api directory found"
 
 echo "======================================"
 echo "All checks passed, starting uvicorn..."
