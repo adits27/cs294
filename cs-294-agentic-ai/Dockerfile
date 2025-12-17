@@ -57,6 +57,6 @@ EXPOSE 8080 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${AGENT_PORT:-${PORT:-8080}}/a2a/health || exit 1
 
-# Run AgentBeats controller (which manages the agent lifecycle)
-# The controller will execute run.sh to start the agent
-CMD ["python", "-m", "agentbeats", "run_ctrl"]
+# Run the agent server directly via run.sh
+# Cloud Run will set PORT=8080, which run.sh will use
+CMD ["./run.sh"]
