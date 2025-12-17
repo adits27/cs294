@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e  # Exit on error
+set -x  # Print commands as they execute
 
 # AgentBeats controller automatically sets $HOST and $AGENT_PORT
 # The agent MUST listen on these variables as per AgentBeats requirements
@@ -10,9 +11,21 @@ set -e  # Exit on error
 LISTEN_HOST=${HOST:-0.0.0.0}
 LISTEN_PORT=${AGENT_PORT:-10000}
 
+echo "======================================"
+echo "AGENT STARTUP - $(date)"
+echo "======================================"
 echo "Starting agent on ${LISTEN_HOST}:${LISTEN_PORT}"
-echo "Environment: HOST=$HOST, AGENT_PORT=$AGENT_PORT, PORT=$PORT"
+echo "Environment variables:"
+echo "  HOST=$HOST"
+echo "  AGENT_PORT=$AGENT_PORT"
+echo "  PORT=$PORT"
+echo "  AGENT_URL=$AGENT_URL"
+echo "  CLOUDRUN_HOST=$CLOUDRUN_HOST"
+echo "  HTTPS_ENABLED=$HTTPS_ENABLED"
 echo "Working directory: $(pwd)"
+echo "Files in current directory:"
+ls -la
+echo "======================================"
 
 # Activate virtual environment if it exists (for local development)
 if [ -f "venv/bin/activate" ]; then
@@ -21,18 +34,33 @@ if [ -f "venv/bin/activate" ]; then
 fi
 
 # Check if uvicorn is available
+echo "Checking for uvicorn..."
 if ! command -v uvicorn &> /dev/null; then
     echo "ERROR: uvicorn not found in PATH"
+    echo "PATH=$PATH"
+    which python || echo "python not found"
     exit 1
 fi
+echo "uvicorn found at: $(which uvicorn)"
+
+# Check Python version
+echo "Python version: $(python --version)"
 
 # Check if the api.server module can be imported
-python3 -c "import api.server" 2>&1 || {
+echo "Testing api.server import..."
+python -c "import api.server; print('api.server imported successfully')" 2>&1 || {
     echo "ERROR: Failed to import api.server module"
+    echo "Python path:"
+    python -c "import sys; print('\n'.join(sys.path))"
+    echo "Trying to list api directory:"
+    ls -la api/ || echo "api directory not found"
     exit 1
 }
 
-echo "Starting uvicorn server..."
+echo "======================================"
+echo "All checks passed, starting uvicorn..."
+echo "======================================"
+
 # Start the agent server
 # The agent listens on HOST:AGENT_PORT as required by AgentBeats
 exec uvicorn api.server:app --host $LISTEN_HOST --port $LISTEN_PORT --log-level info
