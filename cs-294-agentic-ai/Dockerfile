@@ -56,6 +56,6 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${AGENT_PORT:-${PORT:-10000}}/a2a/health || exit 1
 
-# Run the application using the run.sh script
-# Note: AgentBeats controller will use the Procfile
-CMD ["./run.sh"]
+# Run AgentBeats controller (which manages the agent lifecycle)
+# The controller will execute run.sh to start the agent
+CMD ["python", "-m", "agentbeats", "run_ctrl"]
