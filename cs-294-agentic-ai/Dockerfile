@@ -44,10 +44,13 @@ ENV PATH=/root/.local/bin:$PATH
 # Set default environment variables (can be overridden at runtime)
 # AgentBeats controller will set AGENT_PORT dynamically when it starts the agent
 # Default to 10000 for local/AgentBeats use, but controller manages this in production
+# CLOUDRUN_HOST and HTTPS_ENABLED are required for AgentBeats on Cloud Run
 ENV HOST=0.0.0.0 \
     AGENT_PORT=10000 \
     LOG_LEVEL=INFO \
-    API_WORKERS=1
+    API_WORKERS=1 \
+    CLOUDRUN_HOST=ab-green-728049235050.us-central1.run.app \
+    HTTPS_ENABLED=true
 
 # Expose port 8080 (Cloud Run default) and 10000 (AgentBeats default)
 EXPOSE 8080 10000

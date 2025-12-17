@@ -266,17 +266,36 @@ async def agent_card():
     from pathlib import Path
     import json
 
+    # Get AGENT_URL from environment (set by AgentBeats controller)
+    agent_url = os.getenv("AGENT_URL", "")
+    agent_id = "ab-test-validation-agent"
+
+    # Build full URLs with the agent URL base
+    def build_endpoint_url(path: str) -> str:
+        """Build full endpoint URL using AGENT_URL"""
+        if agent_url:
+            # Remove trailing slash from agent_url and leading slash from path
+            base = agent_url.rstrip("/")
+            endpoint = path.lstrip("/")
+            return f"{base}/{endpoint}"
+        return path
+
     card_path = Path(__file__).parent.parent / ".well-known" / "agent-card.json"
     if card_path.exists():
         with open(card_path, 'r') as f:
-            return json.load(f)
+            card_data = json.load(f)
+            # Update endpoints with full URLs if AGENT_URL is set
+            if agent_url and "endpoints" in card_data:
+                for key, path in card_data["endpoints"].items():
+                    card_data["endpoints"][key] = build_endpoint_url(path)
+            return card_data
 
     # Fallback if file doesn't exist
     return {
         "name": "A/B Test Validation Agent",
         "description": "Multi-agent A/B test validation system using A2A protocol",
         "version": API_VERSION,
-        "agent_id": "ab-test-validation-agent",
+        "agent_id": agent_id,
         "capabilities": [
             {
                 "id": "ab_test_validation",
@@ -285,11 +304,11 @@ async def agent_card():
             }
         ],
         "endpoints": {
-            "info": "/info",
-            "manifest": "/a2a/manifest",
-            "capabilities": "/a2a/capabilities",
-            "invoke": "/a2a/invoke",
-            "health": "/a2a/health"
+            "info": build_endpoint_url(f"/to_agent/{agent_id}/info"),
+            "manifest": build_endpoint_url(f"/to_agent/{agent_id}/a2a/manifest"),
+            "capabilities": build_endpoint_url(f"/to_agent/{agent_id}/a2a/capabilities"),
+            "invoke": build_endpoint_url(f"/to_agent/{agent_id}/a2a/invoke"),
+            "health": build_endpoint_url(f"/to_agent/{agent_id}/a2a/health")
         }
     }
 
