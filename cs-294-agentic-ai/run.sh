@@ -7,10 +7,9 @@ set -x  # Print commands as they execute
 # The controller manages the port mapping and proxying
 
 # Use the HOST and AGENT_PORT environment variables set by the controller
-# When running without controller, use PORT from Cloud Run
-# Priority: AGENT_PORT (controller) > PORT (Cloud Run) > 8080 (default)
+# These are required by AgentBeats - do not override them
 LISTEN_HOST=${HOST:-0.0.0.0}
-LISTEN_PORT=${AGENT_PORT:-${PORT:-8080}}
+LISTEN_PORT=${AGENT_PORT:-10000}
 
 echo "======================================"
 echo "AGENT STARTUP - $(date)"

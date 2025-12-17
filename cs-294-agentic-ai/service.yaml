@@ -1,0 +1,31 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: ab-green
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        # Increase startup probe timeout to 10 minutes (600 seconds)
+        # This gives the AgentBeats controller and agent enough time to start
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+      - image: PLACEHOLDER_IMAGE  # Will be replaced by Cloud Build
+        ports:
+        - name: http1
+          containerPort: 8080
+        startupProbe:
+          timeoutSeconds: 600
+          periodSeconds: 10
+          failureThreshold: 1
+          tcpSocket:
+            port: 8080
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2Gi
