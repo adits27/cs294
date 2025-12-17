@@ -42,10 +42,10 @@ RUN chmod +x run.sh
 ENV PATH=/root/.local/bin:$PATH
 
 # Set default environment variables (can be overridden at runtime)
-# AgentBeats controller will set HOST and AGENT_PORT
-# Cloud platforms (Render, Cloud Run, etc.) will set PORT
-# Don't set AGENT_PORT here - let it be set at runtime or fall back to PORT
+# AgentBeats controller will set AGENT_PORT dynamically when it starts the agent
+# Default to 10000 for local/AgentBeats use, but controller manages this in production
 ENV HOST=0.0.0.0 \
+    AGENT_PORT=10000 \
     LOG_LEVEL=INFO \
     API_WORKERS=1
 
@@ -57,6 +57,7 @@ EXPOSE 8080 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${AGENT_PORT:-${PORT:-8080}}/a2a/health || exit 1
 
-# Run the agent server directly via run.sh
-# Cloud Run will set PORT=8080, which run.sh will use
-CMD ["./run.sh"]
+# Run AgentBeats controller (which manages the agent lifecycle)
+# The controller will execute run.sh to start the agent
+# Use the CLI command (not python -m) provided by earthshaker package
+CMD ["agentbeats", "run_ctrl"]
