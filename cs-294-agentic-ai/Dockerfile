@@ -44,17 +44,18 @@ ENV PATH=/root/.local/bin:$PATH
 # Set default environment variables (can be overridden at runtime)
 # AgentBeats controller will set HOST and AGENT_PORT
 # Cloud platforms (Render, Cloud Run, etc.) will set PORT
+# Don't set AGENT_PORT here - let it be set at runtime or fall back to PORT
 ENV HOST=0.0.0.0 \
-    AGENT_PORT=10000 \
     LOG_LEVEL=INFO \
     API_WORKERS=1
 
-# Expose port (defaults to 10000, but configurable via AGENT_PORT or PORT)
-EXPOSE 10000
+# Expose port 8080 (Cloud Run default) and 10000 (AgentBeats default)
+EXPOSE 8080 10000
 
-# Health check (try AGENT_PORT first, fallback to PORT, then default)
+# Health check (try AGENT_PORT first, fallback to PORT, then default 8080)
+# This matches the priority in run.sh: AGENT_PORT > PORT > 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${AGENT_PORT:-${PORT:-10000}}/a2a/health || exit 1
+    CMD curl -f http://localhost:${AGENT_PORT:-${PORT:-8080}}/a2a/health || exit 1
 
 # Run AgentBeats controller (which manages the agent lifecycle)
 # The controller will execute run.sh to start the agent
