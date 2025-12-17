@@ -304,9 +304,16 @@ async def agent_card():
     from pathlib import Path
     import json
 
+    logger.info("=" * 80)
+    logger.info("AGENT CARD REQUEST RECEIVED")
+    logger.info("=" * 80)
+
     # Get AGENT_URL from environment (set by AgentBeats controller)
     agent_url = os.getenv("AGENT_URL", "")
     agent_id = "ab-test-validation-agent"
+
+    logger.info(f"Agent URL from env: '{agent_url}'")
+    logger.info(f"Agent ID: '{agent_id}'")
 
     # Build full URLs with the agent URL base
     def build_endpoint_url(path: str) -> str:
@@ -315,21 +322,45 @@ async def agent_card():
             # Remove trailing slash from agent_url and leading slash from path
             base = agent_url.rstrip("/")
             endpoint = path.lstrip("/")
-            return f"{base}/{endpoint}"
+            result = f"{base}/{endpoint}"
+            logger.debug(f"Built endpoint URL: {path} -> {result}")
+            return result
+        logger.debug(f"No AGENT_URL, returning path as-is: {path}")
         return path
 
     card_path = Path(__file__).parent.parent / ".well-known" / "agent-card.json"
+    logger.info(f"Agent card path: {card_path}")
+    logger.info(f"Agent card exists: {card_path.exists()}")
+
     if card_path.exists():
-        with open(card_path, 'r') as f:
-            card_data = json.load(f)
-            # Update endpoints with full URLs if AGENT_URL is set
-            if agent_url and "endpoints" in card_data:
-                for key, path in card_data["endpoints"].items():
-                    card_data["endpoints"][key] = build_endpoint_url(path)
-            return card_data
+        logger.info("Reading agent card from file...")
+        try:
+            with open(card_path, 'r') as f:
+                card_data = json.load(f)
+                logger.info(f"Agent card loaded successfully")
+                logger.info(f"Original endpoints: {card_data.get('endpoints', {})}")
+
+                # Update endpoints with full URLs if AGENT_URL is set
+                if agent_url and "endpoints" in card_data:
+                    logger.info("Updating endpoints with AGENT_URL...")
+                    for key, path in card_data["endpoints"].items():
+                        original = path
+                        card_data["endpoints"][key] = build_endpoint_url(path)
+                        logger.info(f"  {key}: {original} -> {card_data['endpoints'][key]}")
+                else:
+                    logger.info("Not updating endpoints (no AGENT_URL or no endpoints in card)")
+
+                logger.info("=" * 80)
+                logger.info(f"Returning agent card: {json.dumps(card_data, indent=2)}")
+                logger.info("=" * 80)
+                return card_data
+        except Exception as e:
+            logger.error(f"Error reading agent card file: {e}", exc_info=True)
+            logger.info("Falling back to hardcoded agent card")
 
     # Fallback if file doesn't exist
-    return {
+    logger.warning(f"Agent card file not found at {card_path}, using fallback")
+    fallback_card = {
         "name": "A/B Test Validation Agent",
         "description": "Multi-agent A/B test validation system using A2A protocol",
         "version": API_VERSION,
@@ -349,6 +380,10 @@ async def agent_card():
             "health": build_endpoint_url(f"/to_agent/{agent_id}/a2a/health")
         }
     }
+    logger.info("=" * 80)
+    logger.info(f"Returning fallback agent card: {json.dumps(fallback_card, indent=2)}")
+    logger.info("=" * 80)
+    return fallback_card
 
 
 # ============================================================================
