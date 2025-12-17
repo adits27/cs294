@@ -11,10 +11,10 @@
     }
   ],
   "endpoints": {
-    "info": "/info",
-    "manifest": "/a2a/manifest",
-    "capabilities": "/a2a/capabilities",
-    "invoke": "/a2a/invoke",
-    "health": "/a2a/health"
+    "info": "/to_agent/ab-test-validation-agent/info",
+    "manifest": "/to_agent/ab-test-validation-agent/a2a/manifest",
+    "capabilities": "/to_agent/ab-test-validation-agent/a2a/capabilities",
+    "invoke": "/to_agent/ab-test-validation-agent/a2a/invoke",
+    "health": "/to_agent/ab-test-validation-agent/a2a/health"
   }
 }

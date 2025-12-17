@@ -16,12 +16,22 @@ logger = logging.getLogger(__name__)
 class R2Storage:
     """Cloudflare R2 storage client (S3-compatible)"""
 
+    # Hard-coded R2 configuration
+    BUCKET_URL = "https://26fa6fc0f0d3ae54240e277c7f5583fa.r2.cloudflarestorage.com/green-agent"
+
+    # Hard-coded file paths in R2
+    CODE_FILE_PATH = "green-agent/experiment/code/analysis.py"
+    DATA_CSV_PATH = "green-agent/experiment/data_source/data.csv"
+    DATA_CONTEXT_PATH = "green-agent/experiment/data_source/context.txt"
+    REPORT_MD_PATH = "green-agent/experiment/report/analysis_report.md"
+    REPORT_JSON_PATH = "green-agent/experiment/report/results.json"
+
     def __init__(self):
         """Initialize R2 client from environment variables"""
-        self.bucket = os.getenv("S3_BUCKET")
+        self.bucket = os.getenv("S3_BUCKET", "green-agent")
         self.access_key = os.getenv("S3_ACCESS_KEY_ID")
         self.secret_key = os.getenv("S3_SECRET_ACCESS_KEY")
-        self.endpoint_url = os.getenv("S3_ENDPOINT_URL")
+        self.endpoint_url = os.getenv("S3_ENDPOINT_URL", "https://26fa6fc0f0d3ae54240e277c7f5583fa.r2.cloudflarestorage.com")
         self.public_url_base = os.getenv("S3_PUBLIC_URL_BASE")
 
         # Initialize S3 client if credentials are available
@@ -81,7 +91,8 @@ class R2Storage:
 
     def download_directory(self, r2_prefix: str, local_dir: str) -> dict:
         """
-        Download all files from an R2 directory prefix
+        Deprecated: Download all files from an R2 directory prefix
+        Use get_all_data_files() or get_all_report_files() instead for hard-coded paths
 
         Args:
             r2_prefix: The R2 prefix (e.g., 'experiment/data_source/')
@@ -93,6 +104,7 @@ class R2Storage:
         Raises:
             ValueError: If R2 is not configured
         """
+        logger.warning("download_directory is deprecated. Use get_all_data_files() or get_all_report_files() instead.")
         if not self.is_configured():
             raise ValueError("R2 storage is not configured. Check environment variables.")
 
@@ -155,6 +167,56 @@ class R2Storage:
             return f"{self.public_url_base.rstrip('/')}/{r2_key}"
         return None
 
+    def get_code_file(self, local_path: Optional[str] = None) -> str:
+        """Download the hard-coded code file (analysis.py)"""
+        return self.download_file(self.CODE_FILE_PATH, local_path)
+
+    def get_data_csv(self, local_path: Optional[str] = None) -> str:
+        """Download the hard-coded data CSV file"""
+        return self.download_file(self.DATA_CSV_PATH, local_path)
+
+    def get_data_context(self, local_path: Optional[str] = None) -> str:
+        """Download the hard-coded data context file"""
+        return self.download_file(self.DATA_CONTEXT_PATH, local_path)
+
+    def get_report_markdown(self, local_path: Optional[str] = None) -> str:
+        """Download the hard-coded report markdown file"""
+        return self.download_file(self.REPORT_MD_PATH, local_path)
+
+    def get_report_json(self, local_path: Optional[str] = None) -> str:
+        """Download the hard-coded report JSON file"""
+        return self.download_file(self.REPORT_JSON_PATH, local_path)
+
+    def get_all_data_files(self, local_dir: Optional[str] = None) -> dict:
+        """
+        Download all data source files (CSV and context)
+
+        Returns:
+            Dict with keys 'csv' and 'context' mapping to local file paths
+        """
+        if local_dir is None:
+            local_dir = tempfile.mkdtemp(prefix='r2_data_')
+
+        return {
+            'csv': self.download_file(self.DATA_CSV_PATH, os.path.join(local_dir, 'data.csv')),
+            'context': self.download_file(self.DATA_CONTEXT_PATH, os.path.join(local_dir, 'context.txt'))
+        }
+
+    def get_all_report_files(self, local_dir: Optional[str] = None) -> dict:
+        """
+        Download all report files (markdown and JSON)
+
+        Returns:
+            Dict with keys 'markdown' and 'json' mapping to local file paths
+        """
+        if local_dir is None:
+            local_dir = tempfile.mkdtemp(prefix='r2_report_')
+
+        return {
+            'markdown': self.download_file(self.REPORT_MD_PATH, os.path.join(local_dir, 'analysis_report.md')),
+            'json': self.download_file(self.REPORT_JSON_PATH, os.path.join(local_dir, 'results.json'))
+        }
+
 
 # Global R2 storage instance
 _r2_storage = None
@@ -168,113 +230,33 @@ def get_r2_storage() -> R2Storage:
     return _r2_storage
 
 
+# Legacy functions kept for backward compatibility but simplified
 def is_r2_path(path: str) -> bool:
     """
-    Check if a path is an R2 path
-
-    R2 paths can be:
-    - r2://bucket/key
-    - s3://bucket/key
-    - experiment/data_source/data.csv (relative R2 key)
-    - https://pub-xxx.r2.dev/experiment/data.csv (public URL)
+    Deprecated: Check if a path is an R2 path
+    Use hard-coded methods instead (get_code_file, get_data_csv, etc.)
     """
-    if path.startswith('r2://') or path.startswith('s3://'):
-        return True
-
-    # Check if it's a public R2 URL
-    r2 = get_r2_storage()
-    if r2.public_url_base and path.startswith(r2.public_url_base):
-        return True
-
-    # Check if it looks like a local path
-    if path.startswith('/') or path.startswith('./') or path.startswith('../'):
-        return False
-
-    # If R2 is configured and path doesn't look local, treat as R2 key
-    return r2.is_configured()
+    logger.warning("is_r2_path is deprecated. Use hard-coded storage methods instead.")
+    return False
 
 
 def resolve_path(path: str) -> str:
     """
-    Resolve a path to a local file, downloading from R2 if necessary
-
-    Args:
-        path: Can be local path, R2 key, or R2 URL
-
-    Returns:
-        Local file path
-
-    Raises:
-        ValueError: If path is invalid or R2 is not configured when needed
+    Deprecated: Resolve a path to a local file
+    Use hard-coded methods instead (get_code_file, get_data_csv, etc.)
     """
-    # If it's already a local file that exists, return it
+    logger.warning("resolve_path is deprecated. Use hard-coded storage methods instead.")
     if os.path.exists(path):
-        logger.info(f"Using existing local file: {path}")
         return path
-
-    # Check if it's an R2 path
-    if not is_r2_path(path):
-        # Not R2 and doesn't exist locally
-        logger.warning(f"File not found and not an R2 path: {path}")
-        return path  # Return as-is, let caller handle the error
-
-    # Handle R2 paths
-    r2 = get_r2_storage()
-
-    # Extract R2 key from different formats
-    r2_key = path
-
-    if path.startswith('r2://') or path.startswith('s3://'):
-        # Format: r2://bucket/key or s3://bucket/key
-        parts = path.split('/', 3)
-        if len(parts) >= 4:
-            r2_key = parts[3]  # Everything after bucket name
-    elif r2.public_url_base and path.startswith(r2.public_url_base):
-        # Format: https://pub-xxx.r2.dev/experiment/data.csv
-        r2_key = path[len(r2.public_url_base):].lstrip('/')
-
-    # Download from R2
-    logger.info(f"Downloading from R2: {r2_key}")
-    return r2.download_file(r2_key)
+    raise ValueError(f"Path not found: {path}. Use hard-coded R2Storage methods instead.")
 
 
 def resolve_directory(path: str) -> str:
     """
-    Resolve a directory path, downloading from R2 if necessary
-
-    Args:
-        path: Can be local directory, R2 prefix, or R2 URL prefix
-
-    Returns:
-        Local directory path
+    Deprecated: Resolve a directory path
+    Use hard-coded methods instead (get_all_data_files, get_all_report_files, etc.)
     """
-    # If it's already a local directory that exists, return it
+    logger.warning("resolve_directory is deprecated. Use hard-coded storage methods instead.")
     if os.path.isdir(path):
-        logger.info(f"Using existing local directory: {path}")
         return path
-
-    # Check if it's an R2 path
-    if not is_r2_path(path):
-        logger.warning(f"Directory not found and not an R2 path: {path}")
-        return path
-
-    # Handle R2 paths
-    r2 = get_r2_storage()
-
-    # Extract R2 prefix
-    r2_prefix = path
-    if path.startswith('r2://') or path.startswith('s3://'):
-        parts = path.split('/', 3)
-        if len(parts) >= 4:
-            r2_prefix = parts[3]
-    elif r2.public_url_base and path.startswith(r2.public_url_base):
-        r2_prefix = path[len(r2.public_url_base):].lstrip('/')
-
-    # Create temp directory for downloads
-    local_dir = tempfile.mkdtemp(prefix='r2_download_')
-
-    # Download directory
-    logger.info(f"Downloading directory from R2: {r2_prefix}")
-    r2.download_directory(r2_prefix, local_dir)
-
-    return local_dir
+    raise ValueError(f"Directory not found: {path}. Use hard-coded R2Storage methods instead.")
